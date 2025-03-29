@@ -39,3 +39,8 @@ export function toUint64(int64: bigint) {
 export async function writeToFile(fileName: string, json: string) {
   await fs.writeFile(fileName, json);
 }
+
+export async function readFromFile(fileName: string) {
+  const data = await fs.readFile(fileName);
+  return new Uint8Array(data);
+}
