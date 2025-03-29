@@ -1,0 +1,21 @@
+{
+  "name": "raptor-ts",
+  "version": "1.0.0",
+  "description": "Raptor file serializer/deserializer written in typescript.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc && node dist/index.js"
+  },
+  "keywords": [
+    "raptor",
+    "ts",
+    "web"
+  ],
+  "author": "Sujan Parajuli",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "typescript": "^5.8.2"
+  }
+}
