@@ -6,6 +6,7 @@ import {
   InternalPrimitiveTypeE,
 } from "./enums";
 import { Parser } from "./parser";
+import { ICloneable } from "./types";
 import { THROW } from "./utils";
 
 export interface BaseType {
@@ -247,12 +248,19 @@ export class MemberPrimitiveUnTyped {
   }
 }
 
-export class ObjectString {
+export class ObjectString implements ICloneable<ObjectString> {
   private _objectId: number = 0;
   private _value: string = "";
   public readonly __className = ObjectString.name;
 
   constructor() {}
+
+  clone() {
+    const objectString = new ObjectString();
+    objectString._objectId = this.objectId;
+    objectString._value = this._value;
+    return objectString;
+  }
 
   get objectId() {
     return this._objectId;
@@ -325,9 +333,13 @@ export class MemberReference {
   }
 }
 
-export class ObjectNull {
+export class ObjectNull implements ICloneable<ObjectNull> {
   public nullCount = 0;
   public readonly __className = ObjectNull.name;
+
+  clone() {
+    return new ObjectNull();
+  }
 
   read(parser: Parser, binaryHeaderEnum: BinaryHeaderEnum) {
     switch (binaryHeaderEnum) {

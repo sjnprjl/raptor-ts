@@ -53,10 +53,17 @@ export class Parser {
   private _objectMapIdTable: Record<string, any> = {};
   private _objectMapIdTable2: Record<string, any> = {};
   private _stack: BaseType[] = [];
-  private _refTable: Record<number, any> = {};
 
   constructor(data: Uint8Array) {
     this._data = data;
+  }
+
+  putToObjectMapIdTable2(key: any, data: any) {
+    if (this._objectMapIdTable2[key]) {
+      THROW(`key: ${key} is already included in the object map table`);
+    } else {
+      this._objectMapIdTable2[key] = data;
+    }
   }
 
   private reset() {
@@ -67,7 +74,7 @@ export class Parser {
     this._objects = [];
     this._objectMapIdTable = {};
     this._stack = [];
-    this._refTable = {};
+    // this._refTable = {};
   }
 
   get cursor() {
@@ -186,7 +193,7 @@ export class Parser {
       case InternalPrimitiveTypeE.UInt64:
         return new UInt64(this.readInt64());
       case InternalPrimitiveTypeE.Decimal:
-        return new Decimal(this.readInt64()); 
+        return new Decimal(this.readInt64());
       case InternalPrimitiveTypeE.TimeSpan:
         return new TimeSpan(this.readInt64());
       case InternalPrimitiveTypeE.DateTime:
@@ -272,7 +279,7 @@ export class Parser {
     const parent = this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
 
     const ref = new Ref(new Int32(memberReference.idRef));
-    ref.ref = refObj2;
+    // ref.ref = refObj2;
 
     const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
     if (!key) THROW("key not found");
@@ -308,7 +315,8 @@ export class Parser {
     this._stack.push(binaryArray);
 
     const op = this._stack[this._stack.length - 2];
-    this._objectMapIdTable2[binaryArray.objectId] = binaryArray;
+    // this._objectMapIdTable2[binaryArray.objectId] = binaryArray;
+    this.putToObjectMapIdTable2(binaryArray.objectId, binaryArray);
     this._objectMapIdTable[binaryArray.objectId] = binaryArray;
 
     if (!op) {
@@ -332,7 +340,7 @@ export class Parser {
     objectString.read(this);
 
     this._objectMapIdTable[objectString.objectId] = objectString;
-    this._objectMapIdTable2[objectString.objectId] = objectString;
+    this.putToObjectMapIdTable2(objectString.objectId, objectString);
 
     const op = this._stack[this._stack.length - 1];
     if (op == null) {
@@ -383,7 +391,7 @@ export class Parser {
 
     const o = new obj(objectWithMapTyped.objectId);
 
-    this._objectMapIdTable2[objectWithMapTyped.objectId] = o;
+    this.putToObjectMapIdTable2(objectWithMapTyped.objectId, o);
 
     this._stack.push(objectWithMapTyped);
 
@@ -428,7 +436,6 @@ export class Parser {
     }
 
     if (!objectMap2.clone) {
-      LOG(objectMap);
       LOG(objectMap2);
       THROW("objectMap2.clone not found");
     }
@@ -437,7 +444,7 @@ export class Parser {
     object.objectTypeEnum = InternalObjectTypeE.Object;
     object.objectId = this._binaryObject.objectId;
     this._objectMapIdTable[object.objectId] = object;
-    this._objectMapIdTable2[object.objectId] = objectMap2.clone();
+    this.putToObjectMapIdTable2(object.objectId, objectMap2.clone());
 
     this._stack.push(object);
 
@@ -580,13 +587,18 @@ export class Parser {
 
     const records = this._objects.map((o) => o.record?.() ?? o);
     // LOG(this._objectMapIdTable2);
-    LOG(this._objects2);
+    // LOG(this._objects2);
+    LOG(this._objectMapIdTable2);
 
     writeToFile("./logs/object-record.json", JSON.stringify(records, null, 1));
     writeToFile("./logs/raw.json", JSON.stringify(this._objects, null, 2));
     writeToFile(
       "./logs/objects2.json",
       JSON.stringify(this._objects2, null, 2)
+    );
+    writeToFile(
+      "./logs/object-map-table2.json",
+      JSON.stringify(this._objectMapIdTable2, null, 2)
     );
   }
 }

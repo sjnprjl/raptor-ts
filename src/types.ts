@@ -85,9 +85,12 @@ export class Null {
   private _type_info = InternalPrimitiveTypeE.Null;
   constructor(public value: any) {}
 }
-export class OBoolean extends Boolean {
+export class OBoolean extends Boolean implements ICloneable<OBoolean> {
   private _type_name = OBoolean.name;
   private _type_info = InternalPrimitiveTypeE.Boolean;
+  clone() {
+    return new OBoolean(this.valueOf());
+  }
 }
 
 export const InternalPrimitiveType: Record<InternalPrimitiveTypeE, any> = {

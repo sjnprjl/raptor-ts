@@ -1,5 +1,6 @@
 import { BinaryAssembly, ObjectNull, ObjectString } from "../commonclasses";
 import { Byte, ICloneable, Int16, Int32, OBoolean } from "../types";
+import { LOG } from "../utils";
 
 abstract class BaseObject {
   objectId: number;
@@ -8,9 +9,32 @@ abstract class BaseObject {
   }
 }
 
-export class Ref<T> {
-  public ref!: T;
+export class Component extends BaseObject implements ICloneable<Component> {
+  _serialization!: Int32;
+  _FP!: Ref<FootPrint>;
+  _x_location!: Int32;
+  _y_location!: Int32;
+  _parent!: Ref<Component> | ObjectNull;
+
+  clone() {
+    const comp = new Component(this.objectId);
+    comp._serialization = this._serialization.clone();
+    comp._FP = this._FP.clone();
+    comp._x_location = this._x_location.clone();
+    comp._y_location = this._y_location.clone();
+    comp._parent = this._parent.clone();
+    return comp;
+  }
+}
+
+export class Ref<T extends ICloneable<T>> implements ICloneable<Ref<T>> {
+  public ref?: T;
   constructor(public mapId: Int32) {}
+  clone() {
+    const ref = new Ref<T>(this.mapId);
+    ref.ref = this.ref?.clone();
+    return ref;
+  }
 }
 
 abstract class EnumBaseClass extends BaseObject {
@@ -108,7 +132,7 @@ export class Parallelogram
   _connector_length!: Int32;
   _x_location!: Int32;
   _y_location!: Int32;
-  _Successor!: Ref<null>;
+  _Successor!: Ref<ObjectNull>;
   _parent!: ObjectNull | unknown;
   _is_child!: OBoolean;
   _is_beforeChild!: OBoolean;
@@ -125,14 +149,29 @@ export class Parallelogram
   }
 }
 
-export class IF_Control extends BaseObject implements ICloneable<IF_Control> {
+export class IF_Control extends Component implements ICloneable<IF_Control> {
+  _left_Child!: Ref<Component> | ObjectNull;
+  _right_Child!: Ref<Component> | ObjectNull;
+  _bottom!: Int32;
+  _min_bottom!: Int32;
+  _x_left!: Int32;
+  _y_left!: Int32;
+  _x_right!: Int32;
+  _y_right!: Int32;
+  _left_connector_y!: Int32;
+  _right_connector_y!: Int32;
+  _line_height!: Int32;
+  _is_compressed!: OBoolean;
+
   clone(): IF_Control {
-    throw new Error("Method not implemented.");
+    const ifCtrl = new IF_Control(this.objectId);
+    ifCtrl._left_Child = this._left_Child.clone();
+    ifCtrl._right_Child = this._right_Child.clone();
+    return ifCtrl;
   }
 }
 
-export class Oval extends BaseObject implements ICloneable<Oval> {
-  _serialization_version!: Int32;
+export class Oval extends Component implements ICloneable<Oval> {
   _text_str!: ObjectString;
   _name!: ObjectString;
   _proximity!: Int32;
@@ -140,10 +179,7 @@ export class Oval extends BaseObject implements ICloneable<Oval> {
   _head_heightOrig!: Int32;
   _head_widthOrig!: Int32;
   _connector_length!: Int32;
-  _x_location!: Int32;
-  _y_location!: Int32;
   _Successor!: FootPrint;
-  _parent!: FootPrint | ObjectNull;
   _is_child!: OBoolean;
   _is_beforeChild!: OBoolean;
   _is_afterChild!: OBoolean;
@@ -156,7 +192,8 @@ export class Oval extends BaseObject implements ICloneable<Oval> {
   _changed_guid!: System_Guid;
 
   clone(): Oval {
-    throw new Error("Method not implemented.");
+    const oval = new Oval(this.objectId);
+    return oval;
   }
 }
 
@@ -187,7 +224,14 @@ export class System_Drawing_Rectangle
     return rect;
   }
 }
-export class Rectangle extends BaseObject {}
+export class Rectangle extends Component implements ICloneable<Rectangle> {
+  clone() {
+    const rect = new Rectangle(this.objectId);
+    rect._FP = this._FP.clone();
+
+    return rect;
+  }
+}
 export class Rectangle_Kind_Of
   extends EnumBaseClass
   implements ICloneable<Rectangle_Kind_Of>
@@ -199,7 +243,19 @@ export class Rectangle_Kind_Of
   }
 }
 
-export class CommentBox extends BaseObject {}
+export class Loop extends BaseObject implements ICloneable<Loop> {
+  clone() {
+    const loop = new Loop(this.objectId);
+    return loop;
+  }
+}
+export class Oval_Procedure extends BaseObject {}
+
+export class CommentBox extends BaseObject implements ICloneable<CommentBox> {
+  clone() {
+    return new CommentBox(this.objectId);
+  }
+}
 
 export const assembly = {
   0: {
@@ -221,6 +277,8 @@ export const assembly = {
       Rectangle,
       "Rectangle+Kind_Of": Rectangle_Kind_Of,
       CommentBox,
+      Loop,
+      Oval_Procedure,
     },
   },
   3: {
