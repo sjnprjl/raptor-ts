@@ -258,6 +258,10 @@ export class ObjectString {
     return this._objectId;
   }
 
+  valueOf() {
+    return this._value;
+  }
+
   read(parser: Parser) {
     this._objectId = parser.readInt32();
     this._value = parser.readString();

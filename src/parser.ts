@@ -16,14 +16,21 @@ import {
   InternalObjectTypeE,
   InternalPrimitiveTypeE,
 } from "./enums";
-import { assembly } from "./raptor/assembly";
+import { assembly, Ref } from "./raptor/assembly";
 import {
   Byte,
   DateTime,
+  Decimal,
   Int16,
   Int32,
+  Int64,
   InternalPrimitiveType,
   OBoolean,
+  SByte,
+  TimeSpan,
+  UInt16,
+  UInt32,
+  UInt64,
 } from "./types";
 import {
   LOG,
@@ -169,16 +176,19 @@ export class Parser {
       case InternalPrimitiveTypeE.Int16:
         return new Int16(this.readInt16());
       case InternalPrimitiveTypeE.Int64:
-        NOT_IMPLEMENTED("IPTE_Int64");
+        return new Int64(this.readInt64());
       case InternalPrimitiveTypeE.SByte:
-        NOT_IMPLEMENTED("IPTE_SByte");
+        return new SByte(this.readByte());
       case InternalPrimitiveTypeE.UInt16:
-        NOT_IMPLEMENTED("IPTE_Uint16");
+        return new UInt16(this.readInt16());
       case InternalPrimitiveTypeE.UInt32:
+        return new UInt32(this.readInt32());
       case InternalPrimitiveTypeE.UInt64:
-        NOT_IMPLEMENTED("IPTE_UInt64");
+        return new UInt64(this.readInt64());
       case InternalPrimitiveTypeE.Decimal:
+        return new Decimal(this.readInt64()); 
       case InternalPrimitiveTypeE.TimeSpan:
+        return new TimeSpan(this.readInt64());
       case InternalPrimitiveTypeE.DateTime:
         const i64 = toUint64(this.readInt64());
         const date = new DateTime(i64);
@@ -255,12 +265,18 @@ export class Parser {
     const refObj = this._objectMapIdTable[memberReference.idRef];
     memberReference.ref = refObj;
 
+    const refObj2 = this._objectMapIdTable2[memberReference.idRef];
+
     const op = this._stack[this._stack.length - 1];
 
-    const parent = this._objectMapIdTable[(op as ObjectWithMapTyped).objectId];
+    const parent = this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
+
+    const ref = new Ref(new Int32(memberReference.idRef));
+    ref.ref = refObj2;
+
     const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
     if (!key) THROW("key not found");
-    parent[key] = memberReference;
+    parent[key] = ref;
 
     (op as ObjectWithMapTyped).add(memberReference);
   }
@@ -423,10 +439,6 @@ export class Parser {
     this._objectMapIdTable[object.objectId] = object;
     this._objectMapIdTable2[object.objectId] = objectMap2.clone();
 
-    // if (this._refTable[object.objectId]) {
-    //   this._refTable[object.objectId].ref = object;
-    // }
-
     this._stack.push(object);
 
     let opPeek;
@@ -436,11 +448,11 @@ export class Parser {
         this._objectMapIdTable2[(opPeek as ObjectWithMapTyped).objectId];
       const key = (opPeek as ObjectWithMapTyped).currentKeyOrIndex;
       if (!key) THROW("key not found");
-      parent[key] = opPeek;
+      parent[key] = this._objectMapIdTable2[object.objectId];
       (opPeek as ObjectWithMapTyped).add(object);
     } else {
       this._objects.push(object);
-      this._objects2.push(object);
+      this._objects2.push(this._objectMapIdTable2[object.objectId]);
     }
   }
 
@@ -567,9 +579,14 @@ export class Parser {
     }
 
     const records = this._objects.map((o) => o.record?.() ?? o);
-    LOG(this._objectMapIdTable2);
+    // LOG(this._objectMapIdTable2);
+    LOG(this._objects2);
 
     writeToFile("./logs/object-record.json", JSON.stringify(records, null, 1));
     writeToFile("./logs/raw.json", JSON.stringify(this._objects, null, 2));
+    writeToFile(
+      "./logs/objects2.json",
+      JSON.stringify(this._objects2, null, 2)
+    );
   }
 }
