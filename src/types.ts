@@ -40,7 +40,7 @@ export class Int32 extends Number implements ICloneable<Int32> {
   private _type_name = Int32.name;
   private _type_info = InternalPrimitiveTypeE.Int32;
 }
-export class Int64 extends Number {
+export class Int64 extends String {
   private _type_name = Int64.name;
   private _type_info = InternalPrimitiveTypeE.Int64;
 }
@@ -64,7 +64,7 @@ export class UInt64 extends Number {
   private _type_name = UInt64.name;
   private _type_info = InternalPrimitiveTypeE.UInt64;
 }
-export class TimeSpan extends Number {
+export class TimeSpan extends String {
   private _type_name = TimeSpan.name;
   private _type_info = InternalPrimitiveTypeE.TimeSpan;
 }
@@ -76,7 +76,7 @@ export class DateTime {
     this.value = value.toString();
   }
 }
-export class Decimal extends Number {
+export class Decimal extends String {
   private _type_name = Decimal.name;
   private _type_info = InternalPrimitiveTypeE.Decimal;
 }
