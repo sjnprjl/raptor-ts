@@ -15,6 +15,7 @@ export interface BaseType {
     binaryType: BinaryTypeEnum;
     typeInformation: any;
   };
+  next?: () => void;
 }
 
 export class SerializedStreamHeader {
@@ -24,6 +25,7 @@ export class SerializedStreamHeader {
   private _headerId: number = 0;
   private _majorVersion: number = 0;
   private _minorVersion: number = 0;
+  private __className: string = SerializedStreamHeader.name;
 
   get binaryHeaderEnum() {
     return this._binaryHeaderEnum;
@@ -72,10 +74,28 @@ export class ObjectWithMapTyped implements BaseType {
   private __index = 0;
   public values: any[] = [];
 
+  public readonly __className: string = ObjectWithMapTyped.name;
+
+  private _key_vals: Record<string, any> = {};
+
   public objectTypeEnum: InternalObjectTypeE = InternalObjectTypeE.Object;
 
   constructor(binaryHeaderEnum: BinaryHeaderEnum) {
     this._binaryHeaderEnum = binaryHeaderEnum;
+  }
+
+  add(val: any) {
+    this._key_vals[this._memberNames[this.__index]] = val;
+    this.values.push(val);
+    this.next();
+  }
+
+  get currentKeyOrIndex() {
+    return this._memberNames[this.__index];
+  }
+
+  next() {
+    this.__index++;
   }
 
   set objectId(objectId: number) {
@@ -117,6 +137,10 @@ export class ObjectWithMapTyped implements BaseType {
     return this._memberAssemIds;
   }
 
+  get assemId() {
+    return this._assemId;
+  }
+
   get binaryHeaderEnum() {
     return this._binaryHeaderEnum;
   }
@@ -147,7 +171,7 @@ export class ObjectWithMapTyped implements BaseType {
 
     for (let i = 0; i < this._numMembers; i++) {
       const [typInfo, assemId] = parser.readTypeInfo(this._binaryTypeEnumA[i]);
-      this._memberAssemIds[i] = this._assemId;
+      this._memberAssemIds[i] = assemId;
 
       if (
         this._binaryTypeEnumA[i] != BinaryTypeEnum.ObjectUrt &&
@@ -161,12 +185,25 @@ export class ObjectWithMapTyped implements BaseType {
       this._assemId = parser.readInt32();
     }
   }
+  record() {
+    const keys = Object.keys(this._key_vals);
+    const kv = keys.reduce((acc, key) => {
+      acc[key] = this._key_vals[key].record?.() ?? this._key_vals[key];
+      return acc;
+    }, {} as any);
+
+    return {
+      __className: this.__className,
+      objectId: this._objectId,
+      name: this._name,
+      kv,
+    };
+  }
 
   getInfo() {
     const binaryType = this._binaryTypeEnumA[this.__index];
     const typeInformation = this._typeInformationA[this.__index];
     const isData = this.__index < this._numMembers;
-    this.__index++;
     return { binaryType, typeInformation, isData };
   }
 
@@ -187,6 +224,7 @@ export class ObjectWithMapTyped implements BaseType {
 export class MemberPrimitiveUnTyped {
   private _typeInformation: InternalPrimitiveTypeE;
   private _value: any = null;
+  public readonly __className = MemberPrimitiveUnTyped.name;
 
   get value() {
     return this._value;
@@ -212,8 +250,13 @@ export class MemberPrimitiveUnTyped {
 export class ObjectString {
   private _objectId: number = 0;
   private _value: string = "";
+  public readonly __className = ObjectString.name;
 
   constructor() {}
+
+  get objectId() {
+    return this._objectId;
+  }
 
   read(parser: Parser) {
     this._objectId = parser.readInt32();
@@ -230,6 +273,7 @@ export class ObjectString {
 export class BinaryAssembly {
   private _assemId: number = 0;
   private _assemblyString: string = "";
+  public readonly __className = BinaryAssembly.name;
 
   get assemId() {
     return this._assemId;
@@ -251,18 +295,35 @@ export class BinaryAssembly {
 
 export class MemberReference {
   private _idRef: number = 0;
+  private _ref: any = null;
+
+  public readonly __className = MemberReference.name;
 
   set idRef(idRef: number) {
     this._idRef = idRef;
   }
 
+  set ref(ref: any) {
+    this._ref = ref;
+  }
+  get ref() {
+    return this._ref;
+  }
+
   read(parser: Parser) {
     this._idRef = parser.readInt32();
+  }
+  get idRef() {
+    return this._idRef;
+  }
+  record() {
+    return { ...this, _ref: this.ref?.record?.() ?? this.ref };
   }
 }
 
 export class ObjectNull {
   public nullCount = 0;
+  public readonly __className = ObjectNull.name;
 
   read(parser: Parser, binaryHeaderEnum: BinaryHeaderEnum) {
     switch (binaryHeaderEnum) {
@@ -277,15 +338,23 @@ export class ObjectNull {
         break;
     }
   }
+  record() {
+    return this;
+  }
 }
 
 export class BinaryObject {
   objectId: number = 0;
   mapId: number = 0;
 
+  public readonly __className = BinaryObject.name;
+
   read(parser: Parser) {
     this.objectId = parser.readInt32();
     this.mapId = parser.readInt32();
+  }
+  record() {
+    return this;
   }
 }
 
@@ -304,9 +373,27 @@ export class BinaryArray implements BaseType {
   public values: any[] = [];
   private __index = 0;
 
+  public readonly __className = BinaryArray.name;
+
   constructor(binaryHeaderEnum: BinaryHeaderEnum) {
     this._binaryHeaderEnum = binaryHeaderEnum;
   }
+
+  add(val: any) {
+    this.values.push(val);
+    this.next();
+  }
+  next() {
+    this.__index++;
+  }
+  get objectId() {
+    return this._objectId;
+  }
+
+  get currentKeyOrIndex() {
+    return this.__index;
+  }
+
   objectTypeEnum?: InternalObjectTypeE | undefined;
   getInfo(): {
     isData: boolean;
@@ -316,7 +403,6 @@ export class BinaryArray implements BaseType {
     const binaryType = this._binaryTypeEnum;
     const typeInformation = this._typeInformation;
     const isData = this.__index < this._lengthA[0]; // TODO: change this
-    this.__index++;
     return { binaryType, typeInformation, isData };
   }
 
@@ -348,6 +434,14 @@ export class BinaryArray implements BaseType {
             this._binaryHeaderEnum
         );
     }
+  }
+
+  record() {
+    return {
+      objectId: this._objectId,
+      __className: this.__className,
+      values: [...this.values.map((v) => v.record?.() ?? v)],
+    };
   }
 
   copy() {

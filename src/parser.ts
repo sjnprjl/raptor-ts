@@ -16,7 +16,23 @@ import {
   InternalObjectTypeE,
   InternalPrimitiveTypeE,
 } from "./enums";
-import { LOG, NOT_IMPLEMENTED, THROW, toUint64, writeToFile } from "./utils";
+import { assembly } from "./raptor/assembly";
+import {
+  Byte,
+  DateTime,
+  Int16,
+  Int32,
+  InternalPrimitiveType,
+  OBoolean,
+} from "./types";
+import {
+  LOG,
+  NOT_IMPLEMENTED,
+  STOP,
+  THROW,
+  toUint64,
+  writeToFile,
+} from "./utils";
 
 export class Parser {
   private _data: Uint8Array;
@@ -26,10 +42,25 @@ export class Parser {
   private _assemblyTable: Record<number, BinaryAssembly> = {};
   private _headers: SerializedStreamHeader[] = [];
   private _objects: any[] = [];
+  private _objects2: any[] = [];
   private _objectMapIdTable: Record<string, any> = {};
+  private _objectMapIdTable2: Record<string, any> = {};
   private _stack: BaseType[] = [];
+  private _refTable: Record<number, any> = {};
+
   constructor(data: Uint8Array) {
     this._data = data;
+  }
+
+  private reset() {
+    this._expectedBinaryType = BinaryTypeEnum.ObjectUrt;
+    this._expectedTypeInformation = null;
+    this._assemblyTable = {};
+    this._headers = [];
+    this._objects = [];
+    this._objectMapIdTable = {};
+    this._stack = [];
+    this._refTable = {};
   }
 
   get cursor() {
@@ -92,7 +123,7 @@ export class Parser {
     return this.readByte() | (this.readByte() << 8);
   }
 
-  readTypeInfo(binaryTypeEnum: BinaryTypeEnum) {
+  readTypeInfo(binaryTypeEnum: BinaryTypeEnum): [any, number] {
     let typInfo = null;
     let readAssemId = 0;
 
@@ -126,17 +157,17 @@ export class Parser {
 
     switch (ipte_code) {
       case InternalPrimitiveTypeE.Int32:
-        return this.readInt32();
+        return new Int32(this.readInt32());
       case InternalPrimitiveTypeE.Boolean:
-        return this.readByte() == 1;
+        return new OBoolean(this.readByte() == 1);
       case InternalPrimitiveTypeE.Byte:
-        return this.readByte();
+        return new Byte(this.readByte());
       case InternalPrimitiveTypeE.Char:
         NOT_IMPLEMENTED("IPTE_Char");
       case InternalPrimitiveTypeE.Double:
         NOT_IMPLEMENTED("IPTE_Double");
       case InternalPrimitiveTypeE.Int16:
-        return this.readInt16();
+        return new Int16(this.readInt16());
       case InternalPrimitiveTypeE.Int64:
         NOT_IMPLEMENTED("IPTE_Int64");
       case InternalPrimitiveTypeE.SByte:
@@ -149,9 +180,9 @@ export class Parser {
       case InternalPrimitiveTypeE.Decimal:
       case InternalPrimitiveTypeE.TimeSpan:
       case InternalPrimitiveTypeE.DateTime:
-        const dateTime = toUint64(this.readInt64());
-        const dt = new Date(Number(dateTime / 1000_000n));
-        return { _typ: "DateTime", dateTime: dateTime.toString(), dt };
+        const i64 = toUint64(this.readInt64());
+        const date = new DateTime(i64);
+        return date;
       default:
         THROW("Unimplemented IPTE: " + ipte_code);
     }
@@ -173,7 +204,19 @@ export class Parser {
 
     const op = this._stack[this._stack.length - 1];
 
-    (op as ObjectWithMapTyped).values.push(this._memberPrimitiveUnTyped.value);
+    const parent = this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
+    const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
+    if (key === undefined) {
+      THROW("key not found");
+    }
+    if (!parent) {
+      LOG(parent);
+      LOG(op);
+      LOG(this._objectMapIdTable2);
+      THROW("parent not found");
+    }
+    parent[key] = this._memberPrimitiveUnTyped.value;
+    (op as ObjectWithMapTyped).add(this._memberPrimitiveUnTyped.value);
   }
 
   readHeader() {
@@ -190,28 +233,51 @@ export class Parser {
     const binaryAssembly = new BinaryAssembly();
     binaryAssembly.read(this);
     this._assemblyTable[binaryAssembly.assemId] = binaryAssembly;
-  }
 
-  private _memberReference?: MemberReference;
+    // const assemblyNameReg = /([a-zA-Z0-9.]+)\,/.exec(
+    //   binaryAssembly.assemblyString
+    // );
+    // if (!assemblyNameReg)
+    //   throw THROW("Error: Could not parse assembly name correctly.");
+
+    // const assemblyName = assemblyNameReg[1];
+    // const ass = assembly[assemblyName as keyof typeof assembly];
+    // LOG(binaryAssembly.assemblyString);
+    // if (!ass) THROW("Assembly: " + assemblyName + " Not Found.");
+
+    // STOP("readBinaryAssembly");
+  }
 
   readMemberReference() {
-    if (!this._memberReference) this._memberReference = new MemberReference();
-    this._memberReference.read(this);
+    const memberReference = new MemberReference();
+    memberReference.read(this);
+
+    const refObj = this._objectMapIdTable[memberReference.idRef];
+    memberReference.ref = refObj;
 
     const op = this._stack[this._stack.length - 1];
-    (op as ObjectWithMapTyped).values.push(this._memberReference);
+
+    const parent = this._objectMapIdTable[(op as ObjectWithMapTyped).objectId];
+    const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
+    if (!key) THROW("key not found");
+    parent[key] = memberReference;
+
+    (op as ObjectWithMapTyped).add(memberReference);
   }
 
-  private _objectNull?: ObjectNull;
-
   readObjectNull(binaryHeaderEnum: BinaryHeaderEnum) {
-    if (!this._objectNull) this._objectNull = new ObjectNull();
-    this._objectNull.read(this, binaryHeaderEnum);
+    const objectNull = new ObjectNull();
+    objectNull.read(this, binaryHeaderEnum);
 
     const op = this._stack[this._stack.length - 1];
 
     if (op.objectTypeEnum === InternalObjectTypeE.Object) {
-      (op as ObjectWithMapTyped).values.push(this._objectNull);
+      const parent =
+        this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
+      const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
+      if (!key) THROW("key not found");
+      parent[key] = objectNull;
+      (op as ObjectWithMapTyped).add(objectNull);
     } else {
       THROW("ObjectNull: Not Implemented for " + op.objectTypeEnum);
     }
@@ -226,11 +292,19 @@ export class Parser {
     this._stack.push(binaryArray);
 
     const op = this._stack[this._stack.length - 2];
+    this._objectMapIdTable2[binaryArray.objectId] = binaryArray;
+    this._objectMapIdTable[binaryArray.objectId] = binaryArray;
 
     if (!op) {
       this._objects.push(binaryArray);
+      this._objects2.push(binaryArray);
     } else {
-      (op as ObjectWithMapTyped).values.push(binaryArray);
+      const parent =
+        this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
+      const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
+      if (!key) THROW("Key not found");
+      parent[key] = binaryArray;
+      (op as ObjectWithMapTyped).add(binaryArray);
     }
   }
 
@@ -241,12 +315,35 @@ export class Parser {
     const objectString = new ObjectString();
     objectString.read(this);
 
+    this._objectMapIdTable[objectString.objectId] = objectString;
+    this._objectMapIdTable2[objectString.objectId] = objectString;
+
     const op = this._stack[this._stack.length - 1];
     if (op == null) {
       this._objects.push(objectString);
+      this._objects2.push(objectString);
     } else {
-      (op as ObjectWithMapTyped).values.push(objectString);
+      const parent =
+        this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
+      const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
+      if (!key) throw THROW("key not found");
+      parent[key] = objectString;
+      (op as ObjectWithMapTyped).add(objectString);
     }
+  }
+
+  private getAssemblyInfo(assemId: number) {
+    if (assemId === 0) return assembly["0"];
+    const asm = assembly[assemId as keyof typeof assembly];
+    if (!asm) throw THROW("Assembly: " + assemId + " Not Found.");
+    return asm;
+  }
+
+  private getObject(asm: any, name: string): any {
+    LOG("getObject", asm, name);
+    const obj = name.split(".").reduce((obj, key) => obj[key], asm);
+    if (!obj) throw THROW("Object: " + name + " Not Found.");
+    return obj;
   }
 
   readObjectWithMapTyped(binaryHeaderEnum: BinaryHeaderEnum) {
@@ -256,8 +353,46 @@ export class Parser {
     objectWithMapTyped.objectTypeEnum = InternalObjectTypeE.Object;
 
     this._objectMapIdTable[objectWithMapTyped.objectId] = objectWithMapTyped;
-    this._objects.push(objectWithMapTyped);
+
+    // if (
+    //   this._refTable[objectWithMapTyped.objectId] &&
+    //   !this._refTable[objectWithMapTyped.objectId].ref
+    // ) {
+    //   this._refTable[objectWithMapTyped.objectId].ref = objectWithMapTyped;
+    // }
+
+    const asm = this.getAssemblyInfo(objectWithMapTyped.assemId);
+    const obj = this.getObject(asm, objectWithMapTyped.name);
+    if (!obj) THROW("Object:" + objectWithMapTyped.name + " Not Found.");
+
+    const o = new obj(objectWithMapTyped.objectId);
+
+    this._objectMapIdTable2[objectWithMapTyped.objectId] = o;
+
     this._stack.push(objectWithMapTyped);
+
+    const op = this._stack[this._stack.length - 2];
+    if (!op) {
+      this._objects.push(objectWithMapTyped);
+      this._objects2.push(o);
+    } else {
+      const parentObject =
+        this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
+      if (!parentObject) THROW("parent not found");
+      const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
+
+      if (
+        key == undefined ||
+        key == "undefined" ||
+        typeof key == "object" ||
+        false
+        // !parentObject.hasOwnProperty(key)
+      ) {
+        THROW("key is undefined or malformed");
+      }
+      parentObject[key] = o;
+      (op as ObjectWithMapTyped).add(objectWithMapTyped);
+    }
   }
 
   private _binaryObject?: BinaryObject;
@@ -269,20 +404,43 @@ export class Parser {
       this._binaryObject.mapId
     ] as ObjectWithMapTyped;
 
+    const objectMap2 = this._objectMapIdTable2[this._binaryObject.mapId];
+
     if (!objectMap) THROW("objectMap not found");
+    if (!objectMap2) {
+      THROW("objectMap2 not found");
+    }
+
+    if (!objectMap2.clone) {
+      LOG(objectMap);
+      LOG(objectMap2);
+      THROW("objectMap2.clone not found");
+    }
 
     const object = objectMap.copy();
     object.objectTypeEnum = InternalObjectTypeE.Object;
     object.objectId = this._binaryObject.objectId;
+    this._objectMapIdTable[object.objectId] = object;
+    this._objectMapIdTable2[object.objectId] = objectMap2.clone();
+
+    // if (this._refTable[object.objectId]) {
+    //   this._refTable[object.objectId].ref = object;
+    // }
 
     this._stack.push(object);
 
     let opPeek;
 
     if ((opPeek = this._stack[this._stack.length - 2])) {
-      (opPeek as ObjectWithMapTyped).values.push(object);
+      const parent =
+        this._objectMapIdTable2[(opPeek as ObjectWithMapTyped).objectId];
+      const key = (opPeek as ObjectWithMapTyped).currentKeyOrIndex;
+      if (!key) THROW("key not found");
+      parent[key] = opPeek;
+      (opPeek as ObjectWithMapTyped).add(object);
     } else {
       this._objects.push(object);
+      this._objects2.push(object);
     }
   }
 
@@ -407,9 +565,11 @@ export class Parser {
     while (this._cursor < this._data.length) {
       this._run();
     }
-    LOG(this._assemblyTable);
-    LOG(this._headers);
 
-    writeToFile("./logs/objects.json", JSON.stringify(this._objects, null, 2));
+    const records = this._objects.map((o) => o.record?.() ?? o);
+    LOG(this._objectMapIdTable2);
+
+    writeToFile("./logs/object-record.json", JSON.stringify(records, null, 1));
+    writeToFile("./logs/raw.json", JSON.stringify(this._objects, null, 2));
   }
 }
