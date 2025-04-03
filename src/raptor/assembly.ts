@@ -1,5 +1,4 @@
 import {
-  BinaryAssembly,
   ObjectNull,
   ObjectString,
   SerializedStreamHeader,
@@ -16,9 +15,13 @@ export abstract class BaseObject implements ICloneable<BaseObject> {
   }
 }
 
-export class ASM_Object {
-  public object?: BaseObject;
-  public header?: SerializedStreamHeader;
+export class ASM_Object<TObject extends BaseObject> {
+  public object!: TObject;
+  public header!: SerializedStreamHeader;
+
+  valueOf() {
+    return this.object;
+  }
 }
 
 export class OString extends BaseObject implements ICloneable<OString> {
@@ -40,6 +43,7 @@ export class Component extends BaseObject implements ICloneable<Component> {
   _x_location!: Int32;
   _y_location!: Int32;
   _parent!: Ref<Component> | ObjectNull;
+  _Successor!: Ref<Component> | ObjectNull;
 
   clone() {
     const comp = new Component(this.objectId);
@@ -209,7 +213,6 @@ export class Oval extends Component implements ICloneable<Oval> {
   _head_heightOrig!: Int32;
   _head_widthOrig!: Int32;
   _connector_length!: Int32;
-  _Successor!: FootPrint;
   _is_child!: OBoolean;
   _is_beforeChild!: OBoolean;
   _is_afterChild!: OBoolean;

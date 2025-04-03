@@ -1,6 +1,7 @@
-import { ObjectString } from "./commonclasses";
+import { BinaryArray, ObjectString } from "./commonclasses";
 import { InternalPrimitiveTypeE } from "./enums";
 import {
+  ASM_Object,
   Component,
   OString,
   Subchart_Kinds,
@@ -101,15 +102,22 @@ export class OBoolean extends Boolean implements ICloneable<OBoolean> {
 }
 
 export class SubChart {
-  private rootComponent?: Component;
+  private _rootComponent?: ASM_Object<Component>;
+  private _magicArray?: ASM_Object<BinaryArray>;
   constructor(
-    public readonly name: OString,
-    public readonly kind: Subchart_Kinds,
-    public readonly magic_number?: System_Int32
+    public readonly name: ASM_Object<OString>,
+    public readonly kind: ASM_Object<Subchart_Kinds>,
+    public readonly magic_number?: ASM_Object<System_Int32>
   ) {}
 
-  addRootComponent(component: Component) {
-    this.rootComponent = component;
+  addRootComponent(component: ASM_Object<Component>) {
+    this._rootComponent = component;
+  }
+  addMagicArray(arr: ASM_Object<BinaryArray>) {
+    this._magicArray = arr;
+  }
+  get rootComponent() {
+    return this._rootComponent;
   }
 }
 

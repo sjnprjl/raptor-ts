@@ -6,6 +6,7 @@ import {
   InternalPrimitiveTypeE,
 } from "./enums";
 import { Parser } from "./parser";
+import { OString } from "./raptor/assembly";
 import { ICloneable } from "./types";
 import { THROW } from "./utils";
 
@@ -260,6 +261,12 @@ export class ObjectString implements ICloneable<ObjectString> {
     objectString._objectId = this.objectId;
     objectString._value = this._value;
     return objectString;
+  }
+
+  toOString() {
+    const s = new OString(this._objectId);
+    s.value = this._value;
+    return s;
   }
 
   get objectId() {

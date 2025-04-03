@@ -56,7 +56,7 @@ export class Parser {
   private _objectMapIdTable2: Record<string, any> = {};
   private _stack: BaseType[] = [];
   private _refTable: Record<string, Ref<BaseObject>> = {};
-  private ast: ASM_Object = new ASM_Object();
+  private ast: ASM_Object<BaseObject> = new ASM_Object();
 
   constructor(data: Uint8Array) {
     this._data = data;
@@ -616,7 +616,7 @@ export class Parser {
     }
   }
 
-  run() {
+  async run() {
     let asts = [];
     while (this._cursor < this._data.length) {
       this._run();
@@ -629,7 +629,7 @@ export class Parser {
       this.ast = new ASM_Object();
     }
 
-    const records = this._objects.map((o) => o.record?.() ?? o);
+    // const records = this._objects.map((o) => o.record?.() ?? o);
     // LOG(this._objectMapIdTable2);
     // LOG(this._objects2);
     // this._objects2.forEach((o, i) => {
@@ -640,11 +640,12 @@ export class Parser {
     // writeToFile("./logs/object-record.json", JSON.stringify(records, null, 1));
     // writeToFile("./logs/raw.json", JSON.stringify(this._objects, null, 2));
     writeToFile("./logs/objects2.json", jss(this._objects2, null, 2));
-    writeToFile("./logs/asts.json", jss(asts, null, 2));
+    await writeToFile("./logs/asts.json", jss(asts, null, 2));
     // writeToFile(
     //   "./logs/object-map-table2.json",
     //   JSON.stringify(this._objectMapIdTable2, null, 2)
     // );
-    return this._objects2;
+    // return this._objects2;
+    return asts;
   }
 }
