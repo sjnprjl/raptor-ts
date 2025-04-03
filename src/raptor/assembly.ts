@@ -1,11 +1,36 @@
-import { BinaryAssembly, ObjectNull, ObjectString } from "../commonclasses";
+import {
+  BinaryAssembly,
+  ObjectNull,
+  ObjectString,
+  SerializedStreamHeader,
+} from "../commonclasses";
 import { Byte, ICloneable, Int16, Int32, OBoolean } from "../types";
-import { LOG } from "../utils";
 
-abstract class BaseObject {
+export abstract class BaseObject implements ICloneable<BaseObject> {
   objectId: number;
   constructor(objectId: number) {
     this.objectId = objectId;
+  }
+  clone(): BaseObject {
+    throw new Error("Method not implemented.");
+  }
+}
+
+export class ASM_Object {
+  public object?: BaseObject;
+  public header?: SerializedStreamHeader;
+}
+
+export class OString extends BaseObject implements ICloneable<OString> {
+  private _value: string = "";
+
+  clone() {
+    const s = new OString(this.objectId);
+    s.value = this._value;
+    return s;
+  }
+  set value(v: string) {
+    this._value = v;
   }
 }
 
@@ -32,7 +57,7 @@ export class Ref<T extends ICloneable<T>> implements ICloneable<Ref<T>> {
   constructor(public mapId: Int32) {}
   clone() {
     const ref = new Ref<T>(this.mapId);
-    ref.ref = this.ref?.clone();
+    ref.ref = this.ref;
     return ref;
   }
 }
@@ -42,7 +67,11 @@ abstract class EnumBaseClass extends BaseObject {
 }
 
 export class System_Int32 extends BaseObject {
-  public m_value?: Int32;
+  public m_value!: Int32;
+
+  valueOf() {
+    return this.m_value.valueOf();
+  }
 }
 export class System_Boolean extends BaseObject {
   public m_value?: OBoolean;
@@ -61,14 +90,14 @@ export class Subchart_Kinds
 export class FootPrint extends BaseObject implements ICloneable<FootPrint> {
   clone(): FootPrint {
     const footPrint = new FootPrint(this.objectId);
-    footPrint.left = this.left.clone();
-    footPrint.right = this.right.clone();
-    footPrint.height = this.height.clone();
+    footPrint.left = this.left?.clone();
+    footPrint.right = this.right?.clone();
+    footPrint.height = this.height?.clone();
     return footPrint;
   }
-  public left!: Int32;
-  public right!: Int32;
-  public height!: Int32;
+  public left?: Int32;
+  public right?: Int32;
+  public height?: Int32;
 }
 
 export class Event_Kind
@@ -145,7 +174,8 @@ export class Parallelogram
   _created_guid!: System_Guid;
   _changed_guid!: System_Guid;
   clone(): Parallelogram {
-    throw new Error("Method not implemented.");
+    const parallelogram = new Parallelogram(this.objectId);
+    return parallelogram;
   }
 }
 
@@ -165,8 +195,8 @@ export class IF_Control extends Component implements ICloneable<IF_Control> {
 
   clone(): IF_Control {
     const ifCtrl = new IF_Control(this.objectId);
-    ifCtrl._left_Child = this._left_Child.clone();
-    ifCtrl._right_Child = this._right_Child.clone();
+    ifCtrl._left_Child = this._left_Child?.clone();
+    ifCtrl._right_Child = this._right_Child?.clone();
     return ifCtrl;
   }
 }
@@ -227,7 +257,7 @@ export class System_Drawing_Rectangle
 export class Rectangle extends Component implements ICloneable<Rectangle> {
   clone() {
     const rect = new Rectangle(this.objectId);
-    rect._FP = this._FP.clone();
+    rect._FP = this._FP?.clone();
 
     return rect;
   }

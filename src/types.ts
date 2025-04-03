@@ -1,4 +1,11 @@
+import { ObjectString } from "./commonclasses";
 import { InternalPrimitiveTypeE } from "./enums";
+import {
+  Component,
+  OString,
+  Subchart_Kinds,
+  System_Int32,
+} from "./raptor/assembly";
 
 export interface ICloneable<T> {
   clone(): T;
@@ -90,6 +97,19 @@ export class OBoolean extends Boolean implements ICloneable<OBoolean> {
   private _type_info = InternalPrimitiveTypeE.Boolean;
   clone() {
     return new OBoolean(this.valueOf());
+  }
+}
+
+export class SubChart {
+  private rootComponent?: Component;
+  constructor(
+    public readonly name: OString,
+    public readonly kind: Subchart_Kinds,
+    public readonly magic_number?: System_Int32
+  ) {}
+
+  addRootComponent(component: Component) {
+    this.rootComponent = component;
   }
 }
 

@@ -374,7 +374,7 @@ export class BinaryObject {
   }
 }
 
-export class BinaryArray implements BaseType {
+export class BinaryArray implements BaseType, ICloneable<BinaryArray> {
   private _objectId: number = 0;
   private _rank: number = 0;
   private _lengthA: number[] = [];
@@ -393,6 +393,9 @@ export class BinaryArray implements BaseType {
 
   constructor(binaryHeaderEnum: BinaryHeaderEnum) {
     this._binaryHeaderEnum = binaryHeaderEnum;
+  }
+  clone(): BinaryArray {
+    throw new Error("Method not implemented.");
   }
 
   add(val: any) {

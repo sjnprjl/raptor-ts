@@ -16,7 +16,7 @@ import {
   InternalObjectTypeE,
   InternalPrimitiveTypeE,
 } from "./enums";
-import { assembly, Ref } from "./raptor/assembly";
+import { ASM_Object, assembly, BaseObject, Ref } from "./raptor/assembly";
 import {
   Byte,
   DateTime,
@@ -41,6 +41,8 @@ import {
   writeToFile,
 } from "./utils";
 
+import jss from "json-stringify-safe";
+
 export class Parser {
   private _data: Uint8Array;
   private _cursor = 0;
@@ -53,17 +55,24 @@ export class Parser {
   private _objectMapIdTable: Record<string, any> = {};
   private _objectMapIdTable2: Record<string, any> = {};
   private _stack: BaseType[] = [];
+  private _refTable: Record<string, Ref<BaseObject>> = {};
+  private ast: ASM_Object = new ASM_Object();
 
   constructor(data: Uint8Array) {
     this._data = data;
   }
 
   putToObjectMapIdTable2(key: any, data: any) {
-    if (this._objectMapIdTable2[key]) {
-      THROW(`key: ${key} is already included in the object map table`);
-    } else {
-      this._objectMapIdTable2[key] = data;
+    if (key !== data.objectId) {
+      LOG(key);
+      LOG(data);
+      THROW("Not a valid object to put");
     }
+
+    if (this._objectMapIdTable2[key]) {
+      console.warn(`key: ${key} is already included in the object map table`);
+    }
+    this._objectMapIdTable2[key] = data;
   }
 
   private reset() {
@@ -229,7 +238,6 @@ export class Parser {
     if (!parent) {
       LOG(parent);
       LOG(op);
-      LOG(this._objectMapIdTable2);
       THROW("parent not found");
     }
     parent[key] = this._memberPrimitiveUnTyped.value;
@@ -239,6 +247,7 @@ export class Parser {
   readHeader() {
     const serializedStreamHeader = new SerializedStreamHeader();
     serializedStreamHeader.read(this);
+    this.ast.header = serializedStreamHeader;
     this._headers.push(serializedStreamHeader);
   }
 
@@ -269,8 +278,8 @@ export class Parser {
     const memberReference = new MemberReference();
     memberReference.read(this);
 
-    const refObj = this._objectMapIdTable[memberReference.idRef];
-    memberReference.ref = refObj;
+    // const refObj = this._objectMapIdTable[memberReference.idRef];
+    // memberReference.ref = refObj;
 
     const refObj2 = this._objectMapIdTable2[memberReference.idRef];
 
@@ -278,8 +287,24 @@ export class Parser {
 
     const parent = this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
 
-    const ref = new Ref(new Int32(memberReference.idRef));
-    // ref.ref = refObj2;
+    const ref = new Ref<BaseObject>(new Int32(memberReference.idRef));
+
+    if (refObj2 && refObj2.objectId !== memberReference.idRef) {
+      LOG(refObj2);
+      LOG(memberReference);
+      THROW("not a valid object referenced");
+    }
+
+    if (!refObj2) {
+      this._refTable[memberReference.idRef] = ref;
+    } else {
+      ref.ref = refObj2;
+    }
+
+    // if (!refObj2) {
+    //   this._refMap[memberReference.idRef] = this._refArr.length;
+    //   this._refArr.push(ref);
+    // }
 
     const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
     if (!key) THROW("key not found");
@@ -322,6 +347,7 @@ export class Parser {
     if (!op) {
       this._objects.push(binaryArray);
       this._objects2.push(binaryArray);
+      this.ast.object = binaryArray;
     } else {
       const parent =
         this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
@@ -345,7 +371,12 @@ export class Parser {
     const op = this._stack[this._stack.length - 1];
     if (op == null) {
       this._objects.push(objectString);
-      this._objects2.push(objectString);
+      if (this._refTable[objectString.objectId]) {
+        this._refTable[objectString.objectId].ref = objectString;
+      } else {
+        this.ast.object = objectString;
+        this._objects2.push(objectString);
+      }
     } else {
       const parent =
         this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
@@ -378,13 +409,6 @@ export class Parser {
 
     this._objectMapIdTable[objectWithMapTyped.objectId] = objectWithMapTyped;
 
-    // if (
-    //   this._refTable[objectWithMapTyped.objectId] &&
-    //   !this._refTable[objectWithMapTyped.objectId].ref
-    // ) {
-    //   this._refTable[objectWithMapTyped.objectId].ref = objectWithMapTyped;
-    // }
-
     const asm = this.getAssemblyInfo(objectWithMapTyped.assemId);
     const obj = this.getObject(asm, objectWithMapTyped.name);
     if (!obj) THROW("Object:" + objectWithMapTyped.name + " Not Found.");
@@ -398,7 +422,12 @@ export class Parser {
     const op = this._stack[this._stack.length - 2];
     if (!op) {
       this._objects.push(objectWithMapTyped);
-      this._objects2.push(o);
+      if (this._refTable[o.objectId]) {
+        this._refTable[o.objectId].ref = o;
+      } else {
+        this._objects2.push(o);
+        this.ast.object = o;
+      }
     } else {
       const parentObject =
         this._objectMapIdTable2[(op as ObjectWithMapTyped).objectId];
@@ -410,7 +439,6 @@ export class Parser {
         key == "undefined" ||
         typeof key == "object" ||
         false
-        // !parentObject.hasOwnProperty(key)
       ) {
         THROW("key is undefined or malformed");
       }
@@ -444,7 +472,11 @@ export class Parser {
     object.objectTypeEnum = InternalObjectTypeE.Object;
     object.objectId = this._binaryObject.objectId;
     this._objectMapIdTable[object.objectId] = object;
-    this.putToObjectMapIdTable2(object.objectId, objectMap2.clone());
+
+    const n = objectMap2.clone();
+    n.objectId = this._binaryObject.objectId;
+
+    this.putToObjectMapIdTable2(n.objectId, n);
 
     this._stack.push(object);
 
@@ -458,8 +490,12 @@ export class Parser {
       parent[key] = this._objectMapIdTable2[object.objectId];
       (opPeek as ObjectWithMapTyped).add(object);
     } else {
-      this._objects.push(object);
-      this._objects2.push(this._objectMapIdTable2[object.objectId]);
+      if (this._refTable[n.objectId]) {
+        this._refTable[n.objectId].ref = n;
+      } else {
+        this._objects.push(object);
+        this._objects2.push(n);
+      }
     }
   }
 
@@ -581,24 +617,34 @@ export class Parser {
   }
 
   run() {
+    let asts = [];
     while (this._cursor < this._data.length) {
       this._run();
+      this._refTable = {};
+      this._objectMapIdTable2 = {};
+      // this._objects2 = [];
+      // this._objects = [];
+      this._objectMapIdTable = {};
+      asts.push(this.ast);
+      this.ast = new ASM_Object();
     }
 
     const records = this._objects.map((o) => o.record?.() ?? o);
     // LOG(this._objectMapIdTable2);
     // LOG(this._objects2);
-    LOG(this._objectMapIdTable2);
+    // this._objects2.forEach((o, i) => {
+    //   LOG(o);
+    // });
+    // LOG(this._headers);
 
-    writeToFile("./logs/object-record.json", JSON.stringify(records, null, 1));
-    writeToFile("./logs/raw.json", JSON.stringify(this._objects, null, 2));
-    writeToFile(
-      "./logs/objects2.json",
-      JSON.stringify(this._objects2, null, 2)
-    );
-    writeToFile(
-      "./logs/object-map-table2.json",
-      JSON.stringify(this._objectMapIdTable2, null, 2)
-    );
+    // writeToFile("./logs/object-record.json", JSON.stringify(records, null, 1));
+    // writeToFile("./logs/raw.json", JSON.stringify(this._objects, null, 2));
+    writeToFile("./logs/objects2.json", jss(this._objects2, null, 2));
+    writeToFile("./logs/asts.json", jss(asts, null, 2));
+    // writeToFile(
+    //   "./logs/object-map-table2.json",
+    //   JSON.stringify(this._objectMapIdTable2, null, 2)
+    // );
+    return this._objects2;
   }
 }
