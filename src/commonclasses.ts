@@ -364,6 +364,10 @@ export class ObjectNull implements ICloneable<ObjectNull> {
   record() {
     return this;
   }
+
+  valueOf() {
+    return null;
+  }
 }
 
 export class BinaryObject {

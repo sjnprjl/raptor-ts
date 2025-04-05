@@ -4,9 +4,12 @@ import {
   ASM_Object,
   Component,
   OString,
+  Oval,
   Subchart_Kinds,
   System_Int32,
 } from "./raptor/assembly";
+import { Environment } from "./raptor/environment";
+import { Tokenizer } from "./raptor/tokenizer";
 
 export interface ICloneable<T> {
   clone(): T;
@@ -102,7 +105,7 @@ export class OBoolean extends Boolean implements ICloneable<OBoolean> {
 }
 
 export class SubChart {
-  private _rootComponent?: ASM_Object<Component>;
+  private _rootComponent?: ASM_Object<Oval>;
   private _magicArray?: ASM_Object<BinaryArray>;
   constructor(
     public readonly name: ASM_Object<OString>,
@@ -110,14 +113,19 @@ export class SubChart {
     public readonly magic_number?: ASM_Object<System_Int32>
   ) {}
 
-  addRootComponent(component: ASM_Object<Component>) {
+  addRootComponent(component: ASM_Object<Oval>) {
     this._rootComponent = component;
   }
   addMagicArray(arr: ASM_Object<BinaryArray>) {
     this._magicArray = arr;
   }
+
   get rootComponent() {
     return this._rootComponent;
+  }
+
+  async eval(tokenizer: Tokenizer, env: Environment) {
+    return await this.rootComponent!.valueOf().eval(tokenizer, env);
   }
 }
 
