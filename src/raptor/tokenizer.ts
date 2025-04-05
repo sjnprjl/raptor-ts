@@ -1,4 +1,4 @@
-import { LOG } from "../utils";
+import { LOG, STOP } from "../utils";
 
 export type Token = {
   type: TokenEnum;
@@ -140,9 +140,11 @@ export class Tokenizer {
         type: TokenEnum.EqEq,
         value: "==",
       };
-    } else if ("+-*/%<>!".includes(this._source[this._cursor])) {
+    } else if ("+-*/%<>!,".includes(this._source[this._cursor])) {
       let c = this.next_char();
       switch (c) {
+        case ",":
+          return { type: TokenEnum.Comma, value: "," };
         case "+":
           return { type: TokenEnum.Plus, value: "+" };
         case "-":
@@ -154,22 +156,22 @@ export class Tokenizer {
         case "%":
           return { type: TokenEnum.Mod, value: "%" };
         case "<": {
-          if (this._source[this._cursor + 1] === "=") {
-            this._cursor += 2;
+          if (this._source[this._cursor] === "=") {
+            this._cursor += 1;
             return { type: TokenEnum.LtEq, value: "<=" };
           }
           return { type: TokenEnum.Lt, value: "<" };
         }
         case ">": {
-          if (this._source[this._cursor + 1] === "=") {
-            this._cursor += 2;
+          if (this._source[this._cursor] === "=") {
+            this._cursor += 1;
             return { type: TokenEnum.GtEq, value: ">=" };
           }
           return { type: TokenEnum.Gt, value: ">" };
         }
         case "!": {
-          if (this._source[this._cursor + 1] === "=") {
-            this._cursor += 2;
+          if (this._source[this._cursor] === "=") {
+            this._cursor += 1;
             return { type: TokenEnum.NotEq, value: "!=" };
           }
           return { type: TokenEnum.Not, value: "!" };
