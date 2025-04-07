@@ -4,7 +4,7 @@ import { Raptor } from "./raptor/raptor";
 import { readFromFile } from "./utils";
 
 (async () => {
-  const data = await readFromFile("./examples/factorial.rap");
+  const data = await readFromFile("./examples/loop.rap");
   const parser = new Parser(data);
   const tokens = parser.run();
   const raptor = new Raptor(tokens, globalEnv);

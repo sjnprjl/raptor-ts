@@ -12,6 +12,7 @@ import {
   Component,
   IF_Control,
   Logging_Info,
+  Loop,
   OString,
   Oval,
   Oval_Procedure,
@@ -50,7 +51,7 @@ export class Raptor {
   private magic_boolean_at_last?: ASM_Object<System_Boolean>;
   private magic_guid_at_last?: ASM_Object<System_Guid>;
   private _code_tokenizer = new Tokenizer();
-  private _stack_frame: (Ref<Component> | ObjectNull)[] = [];
+  private _stack_frame: (Ref<Component> | ObjectNull | Component)[] = [];
   private _block_stack: ("if" | "sc" | "proc")[] = [];
 
   private __interpreter = new RaptorInterpreter(this._code_tokenizer, this.env);
@@ -155,30 +156,23 @@ export class Raptor {
           this.__interpreter.get_interrupt() ===
           RaptorInterpreter.INTERRUPT_INPUT
         ) {
-          // running = false;
-          // readline = Readline.createInterface({
-          //   input: stdin,
-          //   output: stdout,
-          // });
-
-          const input = new PrimaryExpression({
-            type: TokenEnum.String,
-            value: "5",
+          running = false;
+          readline = Readline.createInterface({
+            input: stdin,
+            output: stdout,
           });
-          this.__interpreter.assign_input(input);
-          this.__interpreter.reset_interrupt();
 
-          // console.log(this.__interpreter.get_promptString());
-          // readline.on("line", (answer) => {
-          //   const input = new PrimaryExpression({
-          //     type: TokenEnum.String,
-          //     value: answer,
-          //   });
-          //   this.__interpreter.assign_input(input);
-          //   this.__interpreter.reset_interrupt();
-          //   readline?.close();
-          //   this.interpret();
-          // });
+          console.log(this.__interpreter.get_promptString());
+          readline.on("line", (answer) => {
+            const input = new PrimaryExpression({
+              type: TokenEnum.String,
+              value: answer,
+            });
+            this.__interpreter.assign_input(input);
+            this.__interpreter.reset_interrupt();
+            readline?.close();
+            this.interpret();
+          });
         }
 
         continue;
@@ -199,14 +193,32 @@ export class Raptor {
         } else if (ref instanceof IF_Control) {
           this._stack_frame.push(ref._Successor);
           this._current_context = ref.next(this.__interpreter);
+        } else if (ref instanceof Loop) {
+          this._current_context = ref.next(this.__interpreter);
+          if (
+            this.__interpreter.peek_block_stack() === "loop_start" ||
+            this.__interpreter.peek_block_stack() === "loop_body"
+          ) {
+            this._stack_frame.push(ref);
+          }
         } else this._current_context = ref;
       } else if (this._current_context instanceof Parallelogram) {
         this._current_context = this._current_context.next(this.__interpreter);
       } else if (this._current_context instanceof Rectangle) {
         this._current_context = this._current_context.next(this.__interpreter);
+      } else if (this._current_context instanceof Loop) {
+        const next = this._current_context.next(this.__interpreter);
+        if (
+          this.__interpreter.peek_block_stack() === "loop_start" ||
+          this.__interpreter.peek_block_stack() === "loop_body"
+        ) {
+          this._stack_frame.push(this._current_context);
+        }
+        this._current_context = next;
       } else if (this._current_context instanceof ObjectNull) {
-        this.__interpreter.__pop_stack();
         this._current_context = this._stack_frame.pop();
+        if (this._current_context instanceof Loop) {
+        } else this.__interpreter.__pop_stack();
       } else if (this._current_context instanceof IF_Control) {
         this._current_context = this._current_context.next(this.__interpreter);
       } else if (this._current_context === undefined) {

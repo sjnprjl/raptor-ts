@@ -517,10 +517,33 @@ export class Rectangle_Kind_Of
   }
 }
 
-export class Loop extends BaseObject implements ICloneable<Loop> {
+export class Loop extends Component implements ICloneable<Loop> {
+  private _after_Child?: Ref<Component> | ObjectNull;
+  private _before_Child?: Ref<Component> | ObjectNull;
   clone() {
     const loop = new Loop(this.objectId);
     return loop;
+  }
+  toString() {
+    return `Loop(${this._text_str.valueOf()})`;
+  }
+  next(__interpreter: RaptorInterpreter) {
+    const conditional_source = this._text_str.valueOf();
+    const block = __interpreter.peek_block_stack();
+
+    if (block === "loop_start") {
+      __interpreter.__pop_stack();
+      const cond = __interpreter.__evaluate_if_expression(conditional_source);
+      if (!cond /** if (condition satisfies to goes out of the block) */) {
+        __interpreter.__push_loop_body_to_stack();
+        return this._after_Child;
+      } else return this._Successor;
+    } else {
+      // I think this condition always satisfy?
+      if (block === "loop_body") __interpreter.__pop_stack();
+      __interpreter.__push_loop_start_to_stack();
+      return this._before_Child;
+    }
   }
 }
 export class Oval_Procedure

@@ -136,13 +136,16 @@ export class UnaryExpression implements Evaluatable {
     public readonly expr: Evaluatable
   ) {}
   eval(env: Environment) {
+    const evaluated = this.expr.eval(env) as Value;
+    if (evaluated.type !== ValueType.Number)
+      throw new Error("Unary operator can only be applied to numbers");
     switch (this.operator) {
       case TokenEnum.Not:
-        return !this.expr.eval(env);
+        return new Value(!evaluated.value, ValueType.Boolean);
       case TokenEnum.Plus:
-        return this.expr.eval(env);
+        return evaluated;
       case TokenEnum.Minus:
-        return -this.expr.eval(env);
+        return new Value(-1 * evaluated.value, ValueType.Number);
     }
   }
 }

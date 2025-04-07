@@ -22,7 +22,13 @@ export class RaptorInterpreter {
    * proc -> Oval_Procedure
    * func -> Sub_Chart
    */
-  private _block_stack: ("if" | "proc" | "func")[] = [];
+  private _block_stack: (
+    | "if"
+    | "proc"
+    | "func"
+    | "loop_start"
+    | "loop_body"
+  )[] = [];
 
   private _env_stack: Environment[] = [];
 
@@ -39,6 +45,10 @@ export class RaptorInterpreter {
 
   constructor(private readonly tokenizer: Tokenizer, env: Environment) {
     this._env_stack.push(env);
+  }
+
+  peek_block_stack() {
+    return this._block_stack[this._block_stack.length - 1];
   }
 
   get_promptString() {
@@ -62,12 +72,19 @@ export class RaptorInterpreter {
     const assignment_expression = parse_assignment_expression(this.tokenizer);
     assignment_expression.eval(this.env);
   }
-  __evaluate_if_expression(source: string) {
+  __evaluate_if_expression(source: string): boolean {
     this.tokenizer.tokenize(source);
     this._block_stack.push("if");
     const if_expression = parse_conditional_expression(this.tokenizer);
     const cond = if_expression.eval(this.env) as Value;
     return cond.value;
+  }
+
+  __push_loop_start_to_stack() {
+    this._block_stack.push("loop_start");
+  }
+  __push_loop_body_to_stack() {
+    this._block_stack.push("loop_body");
   }
   __evaluate_sub_chart() {
     this._block_stack.push("func");
