@@ -616,36 +616,16 @@ export class Parser {
     }
   }
 
-  async run() {
+  run() {
     let asts = [];
     while (this._cursor < this._data.length) {
       this._run();
       this._refTable = {};
       this._objectMapIdTable2 = {};
-      // this._objects2 = [];
-      // this._objects = [];
       this._objectMapIdTable = {};
       asts.push(this.ast);
       this.ast = new ASM_Object();
     }
-
-    // const records = this._objects.map((o) => o.record?.() ?? o);
-    // LOG(this._objectMapIdTable2);
-    // LOG(this._objects2);
-    // this._objects2.forEach((o, i) => {
-    //   LOG(o);
-    // });
-    // LOG(this._headers);
-
-    // writeToFile("./logs/object-record.json", JSON.stringify(records, null, 1));
-    // writeToFile("./logs/raw.json", JSON.stringify(this._objects, null, 2));
-    writeToFile("./logs/objects2.json", jss(this._objects2, null, 2));
-    await writeToFile("./logs/asts.json", jss(asts, null, 2));
-    // writeToFile(
-    //   "./logs/object-map-table2.json",
-    //   JSON.stringify(this._objectMapIdTable2, null, 2)
-    // );
-    // return this._objects2;
     return asts;
   }
 }

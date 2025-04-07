@@ -1,4 +1,3 @@
-import stringify from "json-stringify-safe";
 import {
   ObjectNull,
   ObjectString,
@@ -8,21 +7,28 @@ import {
   Byte,
   DateTime,
   ICloneable,
+  IEvaluatable,
   Int16,
   Int32,
+  InternalPrimitiveType,
   OBoolean,
   SubChart,
 } from "../types";
 import { LOG, STOP } from "../utils";
 import { Environment } from "./environment";
 import {
-  assignment_expr,
-  BinaryExpression,
-  condition_expr,
-  expr,
+  CallExpression,
   PrimaryExpression,
-} from "./expr-evaluator";
-import { TokenEnum, Tokenizer } from "./tokenizer";
+  VariableExpression,
+} from "./expression-types";
+import { RaptorInterpreter } from "./interpreter";
+import {
+  parse_assignment_expression,
+  parse_conditional_expression,
+  parse_expression,
+  parse_function_declaration,
+} from "./parser";
+import { Tokenizer } from "./tokenizer";
 
 enum RectangleKindE {
   VariableAssignment = 0,
@@ -65,13 +71,19 @@ export class OString extends BaseObject implements ICloneable<OString> {
   }
 }
 
-export class Component extends BaseObject implements ICloneable<Component> {
+export class Component
+  extends BaseObject
+  implements
+    ICloneable<Component>,
+    IEvaluatable<Promise<SubChart | Ref<Component> | ObjectNull>>
+{
   _serialization!: Int32;
   _FP!: Ref<FootPrint>;
   _x_location!: Int32;
   _y_location!: Int32;
   _parent!: Ref<Component> | ObjectNull;
   _Successor!: Ref<Component> | ObjectNull;
+  _text_str!: ObjectString;
 
   clone() {
     const comp = new Component(this.objectId);
@@ -85,7 +97,7 @@ export class Component extends BaseObject implements ICloneable<Component> {
   async eval(
     tokenizer: Tokenizer,
     env: Environment
-  ): Promise<SubChart | Ref<Component> | ObjectNull> {
+  ): Promise<SubChart | ObjectNull | Ref<Component>> {
     throw new Error("Method not implemented.");
   }
 }
@@ -229,22 +241,27 @@ export class Parallelogram
     return this;
   }
 
-  async eval(tokenizer: Tokenizer, env: Environment) {
-    const { varExpr, isInput, promptSourceExpr } = this.parse(tokenizer);
-    if (isInput) {
-      const promptFn = env.getFunction("prompt") as (
-        prompt: string
-      ) => Promise<string>;
-      const str = promptSourceExpr.eval(env);
-      const answer = await promptFn(str);
-      const bin = new BinaryExpression(
-        varExpr,
-        TokenEnum.Eq,
-        new PrimaryExpression({ type: TokenEnum.String, value: answer })
-      );
-      bin.eval(env);
+  next(interpreter: RaptorInterpreter) {
+    const is_input = this._is_input.valueOf();
+
+    let source = this._prompt.valueOf();
+    let variable = "";
+    if (!is_input) {
+      source = this._text_str.valueOf();
     } else {
-      console.log(promptSourceExpr.eval(env));
+      variable = this._text_str.valueOf();
+    }
+
+    const varExpr = interpreter.__parse_expression(variable);
+    const promptSourceExpr = interpreter.__parse_expression(source);
+
+    if (is_input) {
+      interpreter.__evaluate_read(
+        promptSourceExpr,
+        new VariableExpression((varExpr as PrimaryExpression).value.value)
+      );
+    } else {
+      interpreter.__evaluate_write(promptSourceExpr);
     }
 
     return this._Successor;
@@ -263,9 +280,9 @@ export class Parallelogram
     }
 
     tokenizer.tokenize(variable);
-    const varExpr = expr(tokenizer);
+    const varExpr = parse_expression(tokenizer);
     tokenizer.tokenize(source);
-    const promptSourceExpr = expr(tokenizer);
+    const promptSourceExpr = parse_expression(tokenizer);
 
     return { varExpr, promptSourceExpr, isInput };
 
@@ -295,6 +312,13 @@ export class IF_Control extends Component implements ICloneable<IF_Control> {
     return ifCtrl;
   }
 
+  next(interpreter: RaptorInterpreter) {
+    const source = this._text_str.valueOf();
+    const cond = interpreter.__evaluate_if_expression(source);
+    if (cond === true) return this._left_Child;
+    else return this._right_Child;
+  }
+
   async eval(tokenizer: Tokenizer, env: Environment) {
     const source = this._text_str.valueOf();
     tokenizer.tokenize(source);
@@ -302,7 +326,7 @@ export class IF_Control extends Component implements ICloneable<IF_Control> {
   }
 
   private eval_condition(tokenizer: Tokenizer, env: Environment) {
-    const expr = condition_expr(tokenizer);
+    const expr = parse_conditional_expression(tokenizer);
     const cond = expr.eval(env);
 
     if (cond === true) {
@@ -312,7 +336,7 @@ export class IF_Control extends Component implements ICloneable<IF_Control> {
     }
   }
   toString() {
-    return "IF_Control";
+    return `IF_Control(${this._text_str.valueOf()})`;
   }
 }
 
@@ -359,6 +383,17 @@ export class Oval extends Component implements ICloneable<Oval> {
     //   if (!comp) throw new Error(`Not found: Component '${comp}' not found`);
     //   comp.eval(tokenizer, env);
     // }
+  }
+
+  next(interpreter: RaptorInterpreter) {
+    const _text_str = this._text_str.valueOf();
+    if (_text_str === "Start") {
+      interpreter.__evaluate_sub_chart();
+    } else if (_text_str === "End") {
+    } else {
+      throw new Error("Unknown command: " + _text_str);
+    }
+    return this._Successor;
   }
 }
 
@@ -418,7 +453,6 @@ export class System_Drawing_Rectangle
 }
 export class Rectangle extends Component implements ICloneable<Rectangle> {
   private _kind!: Rectangle_Kind_Of;
-  private _text_str!: ObjectString;
   private _name!: ObjectString;
   clone() {
     const rect = new Rectangle(this.objectId);
@@ -435,36 +469,34 @@ export class Rectangle extends Component implements ICloneable<Rectangle> {
     return `Rectangle(${this._text_str.valueOf()})`;
   }
 
-  async eval(tokenizer: Tokenizer, env: Environment) {
-    const result = this.parse(tokenizer);
-    if (result.kind === RectangleKindE.VariableAssignment) {
-      const expr = result.expr;
-      expr.eval(env);
-    } else {
-      // TODO: function call
-      const fn = (result.expr as PrimaryExpression).value.value;
-      const subChart = env.getSubChart(fn);
-      if (!subChart) throw new Error(`Not found: SubChart '${fn}' not found`);
-      // start evaluating subChart
-      return subChart;
-    }
-    return this._Successor;
+  isFunctionCall() {
+    return this._kind.getEnum() === RectangleKindE.FunctionCall;
   }
 
-  parse(tokenizer: Tokenizer) {
-    // tokenizer.tokenize()
+  next(interpreter: RaptorInterpreter) {
     const kind = this._kind.getEnum();
     const source = this._text_str.valueOf();
-    if (kind == RectangleKindE.VariableAssignment) {
-      tokenizer.tokenize(source);
-      const expr = assignment_expr(tokenizer);
-      return { expr, kind };
-    } else if (kind == RectangleKindE.FunctionCall) {
-      tokenizer.tokenize(source);
-      const subChart = expr(tokenizer) as PrimaryExpression;
-      return { expr: subChart, kind };
-    } else {
-      throw new Error("Expected function call or variable assignment");
+    switch (kind) {
+      case RectangleKindE.VariableAssignment:
+        interpreter.__evaluate_assignment_expression(source);
+        return this._Successor;
+      case RectangleKindE.FunctionCall:
+        const expression = interpreter.__evaluate_call_expression(source);
+
+        let name = "";
+        if (expression instanceof PrimaryExpression) {
+          name = expression.value.value;
+        } else if (expression instanceof CallExpression) {
+          name = expression.name;
+        }
+
+        const procedure = interpreter.env.getSubChart(name);
+        if (!procedure)
+          throw new Error(`Not found: SubChart '${name}' not found`);
+
+        return procedure;
+      default:
+      // unreachable
     }
   }
 }
@@ -491,7 +523,37 @@ export class Loop extends BaseObject implements ICloneable<Loop> {
     return loop;
   }
 }
-export class Oval_Procedure extends Component {}
+export class Oval_Procedure
+  extends Component
+  implements ICloneable<Oval_Procedure>
+{
+  private _numParams!: Int32;
+
+  clone() {
+    return this as Oval_Procedure;
+  }
+
+  next(__interpreter: RaptorInterpreter) {
+    const source = this._text_str.valueOf();
+    __interpreter.__evaluate_procedure(source);
+
+    return this._Successor;
+  }
+
+  // async eval(tokenizer: Tokenizer, env: Environment) {
+  //   const source = this._text_str.valueOf();
+  //   tokenizer.tokenize(source);
+  //   const funcDecl = parse_function_declaration(tokenizer) as FuncDeclaration;
+  //   funcDecl.args = this._callExpression?.args ?? [];
+  //   funcDecl.eval(env);
+
+  //   return this._Successor;
+  // }
+
+  toString() {
+    return `Oval_Procedure(${this._text_str.valueOf()})`;
+  }
+}
 
 export class CommentBox extends BaseObject implements ICloneable<CommentBox> {
   clone() {

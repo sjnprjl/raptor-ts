@@ -1,5 +1,3 @@
-import { LOG, STOP } from "../utils";
-
 export type Token = {
   type: TokenEnum;
   value: string;
@@ -9,6 +7,9 @@ export enum TokenEnum {
   Identifier,
   Number,
   String,
+
+  In,
+  Out,
 
   Comma,
 
@@ -31,6 +32,7 @@ export enum TokenEnum {
   Minus, // -
   Mul,
   Div, // /
+  Pow, // ^ / **
 
   // logical operators
   And, // && | and
@@ -122,6 +124,19 @@ export class Tokenizer {
     return false;
   }
 
+  errorMessage(msg: string) {
+    let s = "";
+    let i = 0;
+    while (i++ < this._cursor) {
+      s += "-";
+    }
+    s += "^";
+    const errMsg = `${msg}
+${this._source};
+${s}`;
+    return errMsg;
+  }
+
   next() {
     this.eat_ws();
 
@@ -140,7 +155,7 @@ export class Tokenizer {
         type: TokenEnum.EqEq,
         value: "==",
       };
-    } else if ("+-*/%<>!,".includes(this._source[this._cursor])) {
+    } else if ("+-*/%<>!,^".includes(this._source[this._cursor])) {
       let c = this.next_char();
       switch (c) {
         case ",":
@@ -149,7 +164,13 @@ export class Tokenizer {
           return { type: TokenEnum.Plus, value: "+" };
         case "-":
           return { type: TokenEnum.Minus, value: "-" };
+        case "^":
+          return { type: TokenEnum.Pow, value: "^" };
         case "*":
+          if (this._source[this._cursor] === "*") {
+            this._cursor += 1;
+            return { type: TokenEnum.Pow, value: "**" };
+          }
           return { type: TokenEnum.Mul, value: "*" };
         case "/":
           return { type: TokenEnum.Div, value: "/" };
@@ -252,6 +273,18 @@ export class Tokenizer {
       let ident = "";
       while (this.is_identifier_continue(this._source[this._cursor])) {
         ident += this.next_char();
+      }
+
+      if (ident === "in") {
+        return {
+          type: TokenEnum.In,
+          value: "in",
+        };
+      } else if (ident === "out") {
+        return {
+          type: TokenEnum.Out,
+          value: "out",
+        };
       }
 
       if (ident.toLocaleLowerCase() === "true") {

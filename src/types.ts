@@ -5,14 +5,20 @@ import {
   Component,
   OString,
   Oval,
+  Oval_Procedure,
   Subchart_Kinds,
   System_Int32,
 } from "./raptor/assembly";
 import { Environment } from "./raptor/environment";
+import { RaptorInterpreter } from "./raptor/interpreter";
 import { Tokenizer } from "./raptor/tokenizer";
 
 export interface ICloneable<T> {
   clone(): T;
+}
+
+export interface IEvaluatable<T> {
+  eval(tokenizer: Tokenizer, env: Environment): T;
 }
 
 export class Char extends String implements ICloneable<Char> {
@@ -105,7 +111,7 @@ export class OBoolean extends Boolean implements ICloneable<OBoolean> {
 }
 
 export class SubChart {
-  private _rootComponent?: ASM_Object<Oval>;
+  private _rootComponent?: ASM_Object<Oval | Oval_Procedure>;
   private _magicArray?: ASM_Object<BinaryArray>;
   constructor(
     public readonly name: ASM_Object<OString>,
@@ -113,7 +119,7 @@ export class SubChart {
     public readonly magic_number?: ASM_Object<System_Int32>
   ) {}
 
-  addRootComponent(component: ASM_Object<Oval>) {
+  addRootComponent(component: ASM_Object<Oval | Oval_Procedure>) {
     this._rootComponent = component;
   }
   addMagicArray(arr: ASM_Object<BinaryArray>) {
@@ -126,6 +132,14 @@ export class SubChart {
 
   async eval(tokenizer: Tokenizer, env: Environment) {
     return await this.rootComponent!.valueOf().eval(tokenizer, env);
+  }
+
+  next(interpreter: RaptorInterpreter) {
+    return this.rootComponent?.valueOf();
+  }
+
+  toString() {
+    return `SubChart: ${this.name.valueOf().value}`;
   }
 }
 
