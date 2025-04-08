@@ -32,7 +32,7 @@ import {
   UInt32,
   UInt64,
 } from "./types";
-import { LOG, NOT_IMPLEMENTED, THROW, toUint64 } from "./utils";
+import { NOT_IMPLEMENTED, THROW, toUint64 } from "./utils";
 
 export class Parser {
   private _data: Uint8Array;
@@ -55,8 +55,6 @@ export class Parser {
 
   putToObjectMapIdTable2(key: any, data: any) {
     if (key !== data.objectId) {
-      LOG(key);
-      LOG(data);
       THROW("Not a valid object to put");
     }
 
@@ -166,9 +164,6 @@ export class Parser {
   }
 
   readValue(ipte_code: InternalPrimitiveTypeE) {
-    LOG("readValue");
-    LOG("ipte_code: ", ipte_code);
-
     switch (ipte_code) {
       case InternalPrimitiveTypeE.Int32:
         return new Int32(this.readInt32());
@@ -207,8 +202,6 @@ export class Parser {
 
   private _memberPrimitiveUnTyped?: MemberPrimitiveUnTyped;
   readMemberPrimitiveUnTyped() {
-    LOG("readMemberPrimitiveUnTyped");
-
     if (this._memberPrimitiveUnTyped)
       this._memberPrimitiveUnTyped.typeInformation =
         this._expectedTypeInformation;
@@ -227,8 +220,6 @@ export class Parser {
       THROW("key not found");
     }
     if (!parent) {
-      LOG(parent);
-      LOG(op);
       THROW("parent not found");
     }
     parent[key] = this._memberPrimitiveUnTyped.value;
@@ -250,27 +241,11 @@ export class Parser {
     const binaryAssembly = new BinaryAssembly();
     binaryAssembly.read(this);
     this._assemblyTable[binaryAssembly.assemId] = binaryAssembly;
-
-    // const assemblyNameReg = /([a-zA-Z0-9.]+)\,/.exec(
-    //   binaryAssembly.assemblyString
-    // );
-    // if (!assemblyNameReg)
-    //   throw THROW("Error: Could not parse assembly name correctly.");
-
-    // const assemblyName = assemblyNameReg[1];
-    // const ass = assembly[assemblyName as keyof typeof assembly];
-    // LOG(binaryAssembly.assemblyString);
-    // if (!ass) THROW("Assembly: " + assemblyName + " Not Found.");
-
-    // STOP("readBinaryAssembly");
   }
 
   readMemberReference() {
     const memberReference = new MemberReference();
     memberReference.read(this);
-
-    // const refObj = this._objectMapIdTable[memberReference.idRef];
-    // memberReference.ref = refObj;
 
     const refObj2 = this._objectMapIdTable2[memberReference.idRef];
 
@@ -281,8 +256,6 @@ export class Parser {
     const ref = new Ref<BaseObject>(new Int32(memberReference.idRef));
 
     if (refObj2 && refObj2.objectId !== memberReference.idRef) {
-      LOG(refObj2);
-      LOG(memberReference);
       THROW("not a valid object referenced");
     }
 
@@ -291,11 +264,6 @@ export class Parser {
     } else {
       ref.ref = refObj2;
     }
-
-    // if (!refObj2) {
-    //   this._refMap[memberReference.idRef] = this._refArr.length;
-    //   this._refArr.push(ref);
-    // }
 
     const key = (op as ObjectWithMapTyped).currentKeyOrIndex;
     if (!key) THROW("key not found");
@@ -323,11 +291,8 @@ export class Parser {
   }
 
   readArray(binaryHeaderEnum: BinaryHeaderEnum) {
-    LOG("readArray");
-
     const binaryArray = new BinaryArray(binaryHeaderEnum);
     binaryArray.read(this);
-    LOG("binaryArray", binaryArray);
     this._stack.push(binaryArray);
 
     const op = this._stack[this._stack.length - 2];
@@ -386,7 +351,6 @@ export class Parser {
   }
 
   private getObject(asm: any, name: string): any {
-    LOG("getObject", asm, name);
     const obj = name.split(".").reduce((obj, key) => obj[key], asm);
     if (!obj) throw THROW("Object: " + name + " Not Found.");
     return obj;
@@ -455,7 +419,6 @@ export class Parser {
     }
 
     if (!objectMap2.clone) {
-      LOG(objectMap2);
       THROW("objectMap2.clone not found");
     }
 
@@ -495,7 +458,6 @@ export class Parser {
 
     let isLoop = true;
     while (isLoop) {
-      LOG("parser.expectedType", this._expectedBinaryType);
       let binaryHeaderEnum: BinaryHeaderEnum;
 
       switch (this._expectedBinaryType) {
@@ -507,14 +469,6 @@ export class Parser {
         case BinaryTypeEnum.StringArray:
         case BinaryTypeEnum.PrimitiveArray:
           binaryHeaderEnum = this.readByte();
-
-          LOG(
-            "binaryHeaderEnum",
-            binaryHeaderEnum,
-            "@",
-            (this._cursor - 1).toString(16)
-          );
-
           switch (binaryHeaderEnum) {
             case BinaryHeaderEnum.Assembly:
             case BinaryHeaderEnum.CrossAppDomainAssembly:
@@ -564,7 +518,6 @@ export class Parser {
               break;
             case BinaryHeaderEnum.MessageEnd:
               isLoop = false;
-              LOG("MessageEnd");
               break;
             default:
               THROW(
