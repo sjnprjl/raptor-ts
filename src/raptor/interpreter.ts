@@ -1,3 +1,4 @@
+import stringify from "json-stringify-safe";
 import { RAP_Boolean } from "./dt";
 import { Environment } from "./environment";
 import {
@@ -153,6 +154,10 @@ export class RaptorInterpreter {
         this._env_stack.pop();
       }
     }
+  }
+
+  debug_print_env() {
+    console.log(this.env);
   }
 
   reset_interrupt() {

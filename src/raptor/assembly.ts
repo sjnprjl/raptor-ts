@@ -17,6 +17,7 @@ import {
 import { LOG, STOP } from "../utils";
 import { Environment } from "./environment";
 import {
+  CalleeExpression,
   CallExpression,
   IdentifierExpression,
   LiteralExpression,
@@ -488,9 +489,13 @@ export class Rectangle extends Component implements ICloneable<Rectangle> {
         if (expression instanceof IdentifierExpression) {
           name = expression.value.value;
         } else if (expression instanceof CallExpression) {
-          if (expression.name instanceof IdentifierExpression) {
-            name = expression.name.value.value;
+          if (
+            expression.name instanceof CalleeExpression &&
+            expression.name.value instanceof IdentifierExpression
+          ) {
+            name = expression.name.value.value.value;
           } else {
+            console.log({ expression });
             throw new Error(
               "callee should be a identifier expression. Other are not allowed."
             );

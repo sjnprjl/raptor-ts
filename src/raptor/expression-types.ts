@@ -54,6 +54,29 @@ export class AssignmentExpression implements Evaluatable {
   }
 }
 
+export class CalleeExpression implements Evaluatable {
+  constructor(
+    public readonly value:
+      | GroupExpression
+      | IdentifierExpression
+      | ArrayExpression
+      | LiteralExpression
+  ) {}
+
+  eval(env: Environment) {
+    if (!(this.value instanceof IdentifierExpression))
+      throw new Error(`Callee should be identifier expression.`);
+    const foundVariable = env.getVariableSoft(this.value.value.value);
+    if (!foundVariable) {
+      // check for function
+      const foundFunction = env.getFunction(this.value.value.value);
+      if (!foundFunction) {
+        throw new Error(`variable ${this.value.value} is not found.`);
+      } else return foundFunction;
+    } else return foundVariable;
+  }
+}
+
 export class IdentifierExpression implements Evaluatable {
   constructor(public readonly value: Token) {}
   eval(env: Environment) {
@@ -63,7 +86,7 @@ export class IdentifierExpression implements Evaluatable {
       const foundFunction = env.getFunction(this.value.value);
       if (!foundFunction) {
         throw new Error(`variable ${this.value.value} is not found.`);
-      } else return foundFunction;
+      } else return foundFunction(); // identifier expression is a function;
     } else return foundVariable;
   }
 }
@@ -154,35 +177,38 @@ export class BinaryExpression implements Evaluatable {
     const right = this.right!.eval(env) as RAP_Any;
     const left = this.left!.eval(env) as RAP_Any;
 
+    const _left = left.value;
+    const _right = right.value;
+
     switch (this.op) {
       case TokenEnum.Lt:
-        return new RAP_Boolean(left.value < right.value);
+        return new RAP_Boolean(_left < _right);
       case TokenEnum.LtEq:
-        return new RAP_Boolean(left.value <= right.value);
+        return new RAP_Boolean(_left <= _right);
       case TokenEnum.Gt:
-        return new RAP_Boolean(left.value > right.value);
+        return new RAP_Boolean(_left > _right);
       case TokenEnum.GtEq:
-        return new RAP_Boolean(left.value >= right.value);
+        return new RAP_Boolean(_left >= _right);
       case TokenEnum.EqEq:
-        return new RAP_Boolean(left.value == right.value);
+        return new RAP_Boolean(_left == _right);
       case TokenEnum.NotEq:
-        return new RAP_Boolean(left.value != right.value);
+        return new RAP_Boolean(_left != _right);
       case TokenEnum.And:
-        return new RAP_Boolean(left.value && right.value);
+        return new RAP_Boolean(_left && _right);
       case TokenEnum.Or:
-        return new RAP_Boolean(left.value || right.value);
+        return new RAP_Boolean(_left || _right);
       case TokenEnum.Div:
-        if (isNaN(parseInt(left.value)) || isNaN(parseInt(right.value)))
+        if (isNaN(parseInt(_left)) || isNaN(parseInt(_right)))
           return new RAP_Undefined();
-        return new RAP_Number(left.value / right.value);
+        return new RAP_Number(+_left / +_right);
       case TokenEnum.Mul:
-        if (isNaN(parseInt(left.value)) || isNaN(parseInt(right.value)))
+        if (isNaN(parseInt(_left)) || isNaN(parseInt(_left)))
           return new RAP_Undefined();
-        return new RAP_Number(Number(left.value) * Number(right.value));
+        return new RAP_Number(Number(_left) * Number(_right));
       case TokenEnum.Mod:
-        if (isNaN(parseInt(left.value)) || isNaN(parseInt(right.value)))
+        if (isNaN(parseInt(_left)) || isNaN(parseInt(_right)))
           return new RAP_Undefined();
-        return new RAP_Number(Number(left.value) % Number(right.value));
+        return new RAP_Number(Number(_left) % Number(_right));
       case TokenEnum.Plus:
         const l = +left.value;
         const r = +right.value;
@@ -232,16 +258,12 @@ export class GroupExpression implements Evaluatable {
 
 export class CallExpression implements Evaluatable {
   constructor(
-    public readonly name:
-      | LiteralExpression
-      | IdentifierExpression
-      | GroupExpression
-      | ArrayExpression,
+    public readonly name: CalleeExpression,
     public readonly args: Evaluatable[] = []
   ) {}
   eval(env: Environment) {
     const fn = this.name.eval(env) as Function;
     const args = this.args.map((a) => a.eval(env));
-    return fn?.call(fn, ...args);
+    return fn?.apply(fn, args);
   }
 }

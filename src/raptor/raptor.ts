@@ -146,6 +146,7 @@ export class Raptor {
     let running = true;
     let readline: Readline.Interface | undefined;
     while (running) {
+      // this.__interpreter.debug_print_env();
       if (this.__interpreter.is_interrupted()) {
         if (
           this.__interpreter.get_interrupt() ===
@@ -230,67 +231,6 @@ export class Raptor {
   }
 
   async step() {}
-
-  // async step() {
-  //   if (!this._current_context) {
-  //     const next = await this.sub_charts[0].eval(
-  //       this._code_tokenizer,
-  //       this.env
-  //     );
-  //     if (next instanceof WithEnvironmentWrapper) {
-  //       const o = next.object;
-  //       const _env = next.env;
-  //       this._current_context = o;
-  //       this.env = _env;
-  //     } else this._current_context = next;
-  //     return true;
-  //   } else {
-  //     if (this._current_context instanceof Ref) {
-  //       let next = await this._current_context
-  //         .valueOf()
-  //         ?.eval(this._code_tokenizer, this.env);
-  //       if (next instanceof ObjectNull) {
-  //         if (this._stack_frame.length > 0) {
-  //           this._current_context = this._stack_frame.pop()!;
-  //           return true;
-  //         }
-  //         return false;
-  //       } else if (this._current_context.valueOf() instanceof IF_Control) {
-  //         this._stack_frame.push(
-  //           this._current_context.valueOf()?._Successor as Ref<Component>
-  //         );
-  //         this._current_context = next!;
-  //         return true;
-  //       } else if (next instanceof SubChart) {
-  //         this._stack_frame.push(
-  //           this._current_context.valueOf()?._Successor as Ref<Component>
-  //         );
-  //         if (next.rootComponent?.valueOf() instanceof Oval_Procedure) {
-  //           const newEnv = new Environment();
-  //           newEnv.setParent(this.env);
-  //           this._current_context = await next.eval(
-  //             this._code_tokenizer,
-  //             newEnv
-  //           );
-  //         } else
-  //           this._current_context = await next.eval(
-  //             this._code_tokenizer,
-  //             this.env
-  //           );
-  //         return true;
-  //       } else if (next?.valueOf() != null) {
-  //         this._current_context = next;
-  //         return true;
-  //       } else if (this._stack_frame.length > 0) {
-  //         this._current_context = this._stack_frame.pop()!;
-  //         return true;
-  //       }
-  //     } else {
-  //       return false;
-  //     }
-  //     return false;
-  //   }
-  // }
 
   private next<T extends BaseObject>(): ASM_Object<T> {
     return this.tokens[this.cursor++] as ASM_Object<T>;
