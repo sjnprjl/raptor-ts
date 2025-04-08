@@ -1,3 +1,11 @@
+import {
+  RAP_Any,
+  RAP_Boolean,
+  RAP_Number,
+  RAP_String,
+  RAP_Undefined,
+  ValueType,
+} from "./dt";
 import { Environment } from "./environment";
 import { Token, TokenEnum } from "./tokenizer";
 
@@ -5,18 +13,34 @@ export interface Evaluatable {
   eval(env: Environment): any;
 }
 
-export enum ValueType {
-  Undefined = 0, // not value is initialized
-  String,
-  Number,
-  Boolean,
-  Array,
+export class IdentifierExpression implements Evaluatable {
+  constructor(public readonly value: Token) {}
+  eval(env: Environment) {
+    const foundVariable = env.getVariableSoft(this.value.value);
+    if (!foundVariable) {
+      // check for function
+      const foundFunction = env.getFunction(this.value.value);
+      if (!foundFunction) {
+        throw new Error(`variable ${this.value.value} is not found.`);
+      } else return foundFunction;
+    } else return foundVariable;
+  }
 }
 
-export class Value {
-  constructor(public value: any, public type: ValueType) {}
-  copy() {
-    return new Value(this.value, this.type);
+export class MemberExpression implements Evaluatable {
+  constructor(
+    public readonly identifier: Evaluatable,
+    public readonly property: ArrayExpression
+  ) {}
+  eval(env: Environment) {
+    throw new Error("Method not implemented.");
+  }
+}
+
+export class ArrayExpression implements Evaluatable {
+  constructor(public readonly elements: Evaluatable[]) {}
+  eval(env: Environment) {
+    return this.elements.map((e) => e.eval(env));
   }
 }
 
@@ -40,11 +64,11 @@ export class FunctionDeclaration implements Evaluatable {
         env.setVariable(param.ident, args.eval(parent!));
       } else {
         const refV = parent!.getVariableSoft(
-          (args as PrimaryExpression).value.value
+          (args as LiteralExpression).value.value
         );
-        const ref = refV ?? new Value("undefined", ValueType.Undefined);
+        const ref = refV ?? new RAP_Undefined();
         parent!.setVariable(
-          new VariableExpression((args as PrimaryExpression).value.value, true),
+          new VariableExpression((args as LiteralExpression).value.value, true),
           ref
         );
         env.setVariable(param.ident, ref);
@@ -75,58 +99,52 @@ export class BinaryExpression implements Evaluatable {
   ) {}
 
   eval(env: Environment) {
-    const right = this.right!.eval(env) as Value;
+    const right = this.right!.eval(env) as RAP_Any;
     if (this.op === TokenEnum.Eq) {
       env.setVariable(
-        new VariableExpression((this.left as PrimaryExpression).value.value),
+        new VariableExpression((this.left as IdentifierExpression).value.value),
         right.copy()
       );
       return;
     }
-    const left = this.left!.eval(env) as Value;
+    const left = this.left!.eval(env) as RAP_Any;
 
     switch (this.op) {
       case TokenEnum.Lt:
-        return new Value(left.value < right.value, ValueType.Boolean);
+        return new RAP_Boolean(left.value < right.value);
       case TokenEnum.LtEq:
-        return new Value(left.value <= right.value, ValueType.Boolean);
+        return new RAP_Boolean(left.value <= right.value);
       case TokenEnum.Gt:
-        return new Value(left.value > right.value, ValueType.Boolean);
+        return new RAP_Boolean(left.value > right.value);
       case TokenEnum.GtEq:
-        return new Value(left.value >= right.value, ValueType.Boolean);
+        return new RAP_Boolean(left.value >= right.value);
       case TokenEnum.EqEq:
-        return new Value(left.value == right.value, ValueType.Boolean);
+        return new RAP_Boolean(left.value == right.value);
       case TokenEnum.NotEq:
-        return new Value(left.value != right.value, ValueType.Boolean);
+        return new RAP_Boolean(left.value != right.value);
       case TokenEnum.And:
-        return new Value(left.value && right.value, ValueType.Boolean);
+        return new RAP_Boolean(left.value && right.value);
       case TokenEnum.Or:
-        return new Value(left.value || right.value, ValueType.Boolean);
+        return new RAP_Boolean(left.value || right.value);
       case TokenEnum.Div:
         if (isNaN(parseInt(left.value)) || isNaN(parseInt(right.value)))
-          return new Value("undefined", ValueType.Undefined);
-        return new Value(left.value / right.value, ValueType.Number);
+          return new RAP_Undefined();
+        return new RAP_Number(left.value / right.value);
       case TokenEnum.Mul:
         if (isNaN(parseInt(left.value)) || isNaN(parseInt(right.value)))
-          return new Value("undefined", ValueType.Undefined);
-        return new Value(
-          Number(left.value) * Number(right.value),
-          ValueType.Number
-        );
+          return new RAP_Undefined();
+        return new RAP_Number(Number(left.value) * Number(right.value));
       case TokenEnum.Mod:
         if (isNaN(parseInt(left.value)) || isNaN(parseInt(right.value)))
-          return new Value("undefined", ValueType.Undefined);
-        return new Value(
-          Number(left.value) % Number(right.value),
-          ValueType.Number
-        );
+          return new RAP_Undefined();
+        return new RAP_Number(Number(left.value) % Number(right.value));
       case TokenEnum.Plus:
         if (left.type == ValueType.String || right.type == ValueType.String) {
-          return new Value(left.value + right.value, ValueType.String);
+          return new RAP_String(left.value + right.value);
         }
-        return new Value(left.value + right.value, ValueType.Number);
+        return new RAP_Number(left.value + right.value);
       case TokenEnum.Minus:
-        return new Value(left.value - right.value, ValueType.Number);
+        return new RAP_Number(left.value - right.value);
     }
   }
 }
@@ -136,37 +154,24 @@ export class UnaryExpression implements Evaluatable {
     public readonly expr: Evaluatable
   ) {}
   eval(env: Environment) {
-    const evaluated = this.expr.eval(env) as Value;
+    const evaluated = this.expr.eval(env) as RAP_Number;
     if (evaluated.type !== ValueType.Number)
       throw new Error("Unary operator can only be applied to numbers");
     switch (this.operator) {
       case TokenEnum.Not:
-        return new Value(!evaluated.value, ValueType.Boolean);
+        return new RAP_Boolean(!evaluated.value);
       case TokenEnum.Plus:
         return evaluated;
       case TokenEnum.Minus:
-        return new Value(-1 * evaluated.value, ValueType.Number);
+        return new RAP_Number(-1 * evaluated.value);
     }
   }
 }
 
-export class PrimaryExpression implements Evaluatable {
-  constructor(public readonly value: Token) {}
+export class LiteralExpression implements Evaluatable {
+  constructor(public readonly value: RAP_Any) {}
   eval(env: Environment) {
-    switch (this.value.type) {
-      case TokenEnum.String:
-        return new Value(this.value.value, ValueType.String);
-      case TokenEnum.Number:
-        return new Value(parseInt(this.value.value), ValueType.Number);
-      case TokenEnum.True:
-        return new Value(true, ValueType.Boolean);
-      case TokenEnum.False:
-        return new Value(false, ValueType.Boolean);
-      case TokenEnum.Identifier:
-        return env.getVariable(this.value.value.toLowerCase());
-      default:
-        throw new Error("Not implemented: " + TokenEnum[this.value.type]);
-    }
+    return this.value;
   }
 }
 
@@ -179,12 +184,16 @@ export class GroupExpression implements Evaluatable {
 
 export class CallExpression implements Evaluatable {
   constructor(
-    public readonly name: string,
+    public readonly name:
+      | LiteralExpression
+      | IdentifierExpression
+      | GroupExpression
+      | ArrayExpression,
     public readonly args: Evaluatable[] = []
   ) {}
   eval(env: Environment) {
-    const stdFn = env.getFunction(this.name);
+    const fn = this.name.eval(env) as Function;
     const args = this.args.map((a) => a.eval(env));
-    return stdFn?.call(stdFn, ...args);
+    return fn?.call(fn, ...args);
   }
 }

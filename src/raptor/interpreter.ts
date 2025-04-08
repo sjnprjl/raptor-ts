@@ -1,9 +1,10 @@
+import { RAP_Boolean } from "./dt";
 import { Environment } from "./environment";
 import {
   CallExpression,
   Evaluatable,
-  PrimaryExpression,
-  Value,
+  IdentifierExpression,
+  LiteralExpression,
   VariableExpression,
 } from "./expression-types";
 import {
@@ -55,7 +56,7 @@ export class RaptorInterpreter {
     return this._promptString;
   }
 
-  assign_input(value: PrimaryExpression) {
+  assign_input(value: LiteralExpression) {
     this.env.setVariable(this._interruptVariable, value.eval(this.env));
   }
 
@@ -76,7 +77,7 @@ export class RaptorInterpreter {
     this.tokenizer.tokenize(source);
     this._block_stack.push("if");
     const if_expression = parse_conditional_expression(this.tokenizer);
-    const cond = if_expression.eval(this.env) as Value;
+    const cond = if_expression.eval(this.env) as RAP_Boolean;
     return cond.value;
   }
 
@@ -101,9 +102,14 @@ export class RaptorInterpreter {
     function_declaration.args = call_expression.args;
     function_declaration.eval(this.env);
   }
+
+  __get_identifier_name(identifier: IdentifierExpression) {
+    return identifier.value.value;
+  }
+
   __evaluate_call_expression(
     source: string
-  ): CallExpression | PrimaryExpression {
+  ): CallExpression | IdentifierExpression {
     this.tokenizer.tokenize(source);
 
     const expression = parse_expression(this.tokenizer);
@@ -117,10 +123,10 @@ export class RaptorInterpreter {
 
     if (
       expression instanceof CallExpression ||
-      expression instanceof PrimaryExpression
+      expression instanceof IdentifierExpression
     )
       return expression;
-    throw new Error("Expected call expression");
+    throw new Error("Expected call expression or identifier expression");
   }
 
   __evaluate_read(prompt: Evaluatable, variable: VariableExpression) {
@@ -130,7 +136,7 @@ export class RaptorInterpreter {
   }
   __evaluate_write(output: Evaluatable) {
     this._interrupt = RaptorInterpreter.INTERRUPT_OUTPUT;
-    this._promptString = "" + output.eval(this.env).value;
+    this._promptString = "" + output.eval(this.env).value.toString();
   }
 
   __pop_stack() {

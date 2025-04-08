@@ -1,4 +1,4 @@
-import { LOG } from "../utils";
+import { RAP_Boolean, RAP_Number, RAP_String } from "./dt";
 import {
   BinaryExpression,
   CallExpression,
@@ -6,59 +6,116 @@ import {
   FunctionDeclaration,
   FuncParameter,
   GroupExpression,
-  PrimaryExpression,
+  LiteralExpression,
   UnaryExpression,
   VariableExpression,
+  ArrayExpression,
+  MemberExpression,
+  IdentifierExpression,
 } from "./expression-types";
 import { Token, TokenEnum, Tokenizer } from "./tokenizer";
 
 export function parse_group_expr(tokenizer: Tokenizer) {
   const expression = parse_expression(tokenizer);
   if (!tokenizer.nextIfTrue(({ type }) => type === TokenEnum.ParenClose)) {
-    LOG(expression);
     throw new Error("Expected ')' but got " + tokenizer.next()?.value);
   }
   return new GroupExpression(expression);
 }
 
-export function parse_primary_expression(tokenizer: Tokenizer) {
+export function parse_array_expr(tokenizer: Tokenizer) {
+  const array = new ArrayExpression([]);
+  while (
+    !tokenizer.nextIfTrue(({ type }) => type === TokenEnum.SqrBracketClose)
+  ) {
+    const expression = parse_expression(tokenizer);
+    array.elements.push(expression);
+    if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Comma)) {
+      continue;
+    } else if (
+      tokenizer.nextIfTrue(({ type }) => type === TokenEnum.SqrBracketClose)
+    ) {
+      break;
+    } else {
+      throw new Error(tokenizer.errorMessage("Expected ',' or ']'"));
+    }
+  }
+  return array;
+}
+
+export function parse_primary_expression(
+  tokenizer: Tokenizer
+):
+  | GroupExpression
+  | ArrayExpression
+  | IdentifierExpression
+  | LiteralExpression {
   const token = tokenizer.next();
   if (!token) throw new Error("Expected expression");
 
-  if (token.type === TokenEnum.ParenOpen) return parse_group_expr(tokenizer);
-
-  if (token.type === TokenEnum.Identifier) {
-    const isCall = tokenizer.nextIfTrue(
-      ({ type }) => type === TokenEnum.ParenOpen
-    );
-    if (isCall) {
-      // call expression
-      const cexpr = new CallExpression(token.value);
-      cexpr.args.push(parse_expression(tokenizer));
-      while (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Comma)) {
-        if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.ParenClose))
-          break;
-        cexpr.args.push(parse_expression(tokenizer));
-      }
-      tokenizer.next(); // eat ')
-      return cexpr;
-    }
+  switch (token.type) {
+    case TokenEnum.ParenOpen:
+      return parse_group_expr(tokenizer);
+    case TokenEnum.SqrBracketOpen:
+      return parse_array_expr(tokenizer);
+    case TokenEnum.Identifier:
+      return new IdentifierExpression(token);
+    case TokenEnum.String:
+      return new LiteralExpression(new RAP_String(token.value));
+    case TokenEnum.Number:
+      return new LiteralExpression(new RAP_Number(+token.value));
+    case TokenEnum.True:
+      return new LiteralExpression(new RAP_Boolean(true));
+    case TokenEnum.False:
+      return new LiteralExpression(new RAP_Boolean(false));
+    default:
+      throw new Error(tokenizer.errorMessage("Expected identifier"));
   }
-
-  return new PrimaryExpression(token);
 }
 
-function parse_unary_expression(tokenizer: Tokenizer) {
+function parse_call_expression(
+  tokenizer: Tokenizer
+): ReturnType<typeof parse_primary_expression> | CallExpression {
+  const primary = parse_primary_expression(tokenizer);
+  if (!tokenizer.check(TokenEnum.ParenOpen)) return primary;
+
+  // call expression
+  const call_expr = new CallExpression(primary);
+  if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.ParenClose))
+    return call_expr;
+  call_expr.args.push(parse_expression(tokenizer));
+  while (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Comma)) {
+    if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.ParenClose))
+      break;
+    call_expr.args.push(parse_expression(tokenizer));
+  }
+  tokenizer.next(); // eat ')
+  return call_expr;
+}
+
+function parse_member_expression(tokenizer: Tokenizer) {
+  // <ident> '[' ']'
+  const call_expr = parse_call_expression(tokenizer);
+  if (tokenizer.check(TokenEnum.ParenOpen)) {
+    // member_expression
+    const arr_expr = parse_array_expr(tokenizer);
+    return new MemberExpression(call_expr, arr_expr);
+  } else return call_expr;
+}
+
+function parse_unary_expression(
+  tokenizer: Tokenizer
+): ReturnType<typeof parse_member_expression> | UnaryExpression {
   const unary_operator = tokenizer.nextIfTrue(({ type }) =>
     [TokenEnum.Not, TokenEnum.Plus, TokenEnum.Minus].some((t) => t === type)
   );
 
   if (unary_operator === false) {
-    return parse_primary_expression(tokenizer);
+    return parse_member_expression(tokenizer);
   } else {
     return new UnaryExpression(
       unary_operator.type,
-      parse_primary_expression(tokenizer)
+      parse_unary_expression(tokenizer)
     );
   }
 }
@@ -180,14 +237,18 @@ export function parse_conditional_expression(tokenizer: Tokenizer) {
 
 export function parse_assignment_expression(tokenizer: Tokenizer) {
   const ident = parse_primary_expression(tokenizer);
-  if (ident instanceof GroupExpression || ident instanceof CallExpression)
+  if (
+    ident instanceof GroupExpression ||
+    ident instanceof CallExpression ||
+    ident instanceof ArrayExpression
+  )
     throw new Error("Expected identifier");
   if (ident.value.type !== TokenEnum.Identifier)
     throw new Error(
       "Expected identifier but got " + TokenEnum[ident.value.type]
     );
   if (!tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Eq)) {
-    throw new Error("Expected ':=' after identifier ");
+    throw new Error(tokenizer.errorMessage("Expected ':=' after identifier "));
   }
   const expr = parse_conditional_expression(tokenizer);
   return new BinaryExpression(ident, TokenEnum.Eq, expr);

@@ -1,19 +1,29 @@
 import Readline from "readline/promises";
 import { stdin, stdout } from "process";
 import { SubChart } from "../types";
-import { Value, VariableExpression } from "./expression-types";
+import { VariableExpression } from "./expression-types";
+import { RAP_Any, RAP_Value } from "./dt";
 
 export class Environment {
-  private variables: Map<string, Value> = new Map<string, Value>();
+  private variables: Map<string, RAP_Any> = new Map<string, RAP_Any>();
   private variable_ref: Map<string, boolean> = new Map<string, boolean>();
   // functions
   private static functions: Map<string, Function> = new Map<string, Function>();
 
   private static subCharts: Map<string, SubChart> = new Map<string, SubChart>();
 
+  private static constants: Map<string, RAP_Value<any>> = new Map<
+    string,
+    RAP_Value<any>
+  >();
+
   private _parent: Environment | null = null;
 
   constructor() {}
+
+  setConstant(ident: string, value: RAP_Value<any>) {
+    Environment.constants.set(ident, value);
+  }
 
   private getEnvForName(name: string): Environment {
     if (this.variables.has(name)) return this;
@@ -21,7 +31,7 @@ export class Environment {
     return this._parent.getEnvForName(name);
   }
 
-  setVariable(name: VariableExpression, value: Value) {
+  setVariable(name: VariableExpression, value: RAP_Any) {
     const env = this.getEnvForName(name.name);
     if (env.isVariableRef(name.name)) {
       const v = env.getVariable(name.name);
@@ -39,13 +49,13 @@ export class Environment {
     if (!this._parent) return false;
     return this._parent.isVariableRef(name);
   }
-  getVariable(name: string): Value {
+  getVariable(name: string): RAP_Any {
     if (this.variables.has(name)) return this.variables.get(name)!;
     if (!this._parent) throw new Error(`variable ${name} not found`);
     return this._parent.getVariable(name);
   }
 
-  getVariableSoft(name: string): Value | undefined {
+  getVariableSoft(name: string): RAP_Any | undefined {
     if (this.variables.has(name)) return this.variables.get(name)!;
     if (!this._parent) return undefined;
     return this._parent.getVariableSoft(name);
@@ -70,25 +80,3 @@ export class Environment {
     return this._parent;
   }
 }
-
-export const globalEnv = new Environment();
-
-async function std_prompt(prompt: string) {
-  const readline = Readline.createInterface({ input: stdin, output: stdout });
-  const answer = await readline.question(prompt);
-  readline.close();
-  return answer;
-}
-
-function intern_is_array(variable: string, env: Environment) {}
-
-function Is_Array(variable: string) {
-  return false;
-}
-
-globalEnv.setFunction("prompt", std_prompt);
-globalEnv.setFunction("is_array", Is_Array);
-globalEnv.setFunction("sqrt", (v: number) => {
-  const res = Math.sqrt(v);
-  return res;
-});

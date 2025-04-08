@@ -18,7 +18,8 @@ import { LOG, STOP } from "../utils";
 import { Environment } from "./environment";
 import {
   CallExpression,
-  PrimaryExpression,
+  IdentifierExpression,
+  LiteralExpression,
   VariableExpression,
 } from "./expression-types";
 import { RaptorInterpreter } from "./interpreter";
@@ -252,13 +253,13 @@ export class Parallelogram
       variable = this._text_str.valueOf();
     }
 
-    const varExpr = interpreter.__parse_expression(variable);
+    const varExpr = is_input ? interpreter.__parse_expression(variable) : null;
     const promptSourceExpr = interpreter.__parse_expression(source);
 
     if (is_input) {
       interpreter.__evaluate_read(
         promptSourceExpr,
-        new VariableExpression((varExpr as PrimaryExpression).value.value)
+        new VariableExpression((varExpr as LiteralExpression).value.value)
       );
     } else {
       interpreter.__evaluate_write(promptSourceExpr);
@@ -484,10 +485,20 @@ export class Rectangle extends Component implements ICloneable<Rectangle> {
         const expression = interpreter.__evaluate_call_expression(source);
 
         let name = "";
-        if (expression instanceof PrimaryExpression) {
+        if (expression instanceof IdentifierExpression) {
           name = expression.value.value;
         } else if (expression instanceof CallExpression) {
-          name = expression.name;
+          if (expression.name instanceof IdentifierExpression) {
+            name = expression.name.value.value;
+          } else {
+            throw new Error(
+              "callee should be a identifier expression. Other are not allowed."
+            );
+          }
+        } else {
+          throw new Error(
+            "callee should be a identifier expression or call expression. Other are not allowed."
+          );
         }
 
         const procedure = interpreter.env.getSubChart(name);

@@ -27,9 +27,10 @@ import {
 import { TokenEnum, Tokenizer } from "./tokenizer";
 import { Environment } from "./environment";
 import { RaptorInterpreter } from "./interpreter";
-import { PrimaryExpression } from "./expression-types";
+import { LiteralExpression } from "./expression-types";
 import Readline from "readline";
 import { stdin, stdout } from "process";
+import { RAP_String } from "./dt";
 
 export class Raptor {
   private tokens: ASM_Object<BaseObject>[];
@@ -164,10 +165,7 @@ export class Raptor {
 
           console.log(this.__interpreter.get_promptString());
           readline.on("line", (answer) => {
-            const input = new PrimaryExpression({
-              type: TokenEnum.String,
-              value: answer,
-            });
+            const input = new LiteralExpression(new RAP_String(answer));
             this.__interpreter.assign_input(input);
             this.__interpreter.reset_interrupt();
             readline?.close();

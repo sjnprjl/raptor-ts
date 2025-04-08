@@ -33,6 +33,7 @@ export enum TokenEnum {
   Mul,
   Div, // /
   Pow, // ^ / **
+  Xor, // xor
 
   // logical operators
   And, // && | and
@@ -90,6 +91,10 @@ export class Tokenizer {
     this._cursor = 0;
   }
 
+  check(type: TokenEnum) {
+    return this.nextIfTrue(({ type: t }) => t === type);
+  }
+
   eat(type: TokenEnum) {
     const act = this.next();
     if (!act) throw new Error(`Expected ${type}, but got nothing.`);
@@ -132,7 +137,7 @@ export class Tokenizer {
     }
     s += "^";
     const errMsg = `${msg}
-${this._source};
+${this._source}
 ${s}`;
     return errMsg;
   }
@@ -275,28 +280,51 @@ ${s}`;
         ident += this.next_char();
       }
 
-      if (ident === "in") {
-        return {
-          type: TokenEnum.In,
-          value: "in",
-        };
-      } else if (ident === "out") {
-        return {
-          type: TokenEnum.Out,
-          value: "out",
-        };
-      }
+      switch (ident.toLowerCase()) {
+        case "in":
+          return {
+            type: TokenEnum.In,
+            value: "in",
+          };
 
-      if (ident.toLocaleLowerCase() === "true") {
-        return {
-          type: TokenEnum.True,
-          value: "true",
-        };
-      } else if (ident.toLocaleLowerCase() === "false") {
-        return {
-          type: TokenEnum.False,
-          value: "false",
-        };
+        case "out":
+          return {
+            type: TokenEnum.Out,
+            value: "out",
+          };
+
+        case "true":
+          return {
+            type: TokenEnum.True,
+            value: "true",
+          };
+        case "false":
+          return {
+            type: TokenEnum.False,
+            value: "false",
+          };
+        case "and":
+          return {
+            type: TokenEnum.And,
+            value: "and",
+          };
+
+        case "or":
+          return {
+            type: TokenEnum.Or,
+            value: "or",
+          };
+        case "xor":
+          return {
+            type: TokenEnum.Xor,
+            value: "xor",
+          };
+        case "mod":
+        case "rem":
+          return {
+            type: TokenEnum.Mod,
+            value: "mod",
+          };
       }
 
       if (ident.length > 0) {
