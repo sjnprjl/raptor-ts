@@ -325,6 +325,12 @@ ${s}`;
             type: TokenEnum.Mod,
             value: "mod",
           };
+        case "not": {
+          return {
+            type: TokenEnum.Not,
+            value: "not",
+          };
+        }
       }
 
       if (ident.length > 0) {

@@ -40,8 +40,8 @@ export class Environment {
       env.variables.set(name.name, v);
       return;
     }
-    this.variables.set(name.name, value);
-    this.variable_ref.set(name.name, name.ref);
+    env.variables.set(name.name, value);
+    env.variable_ref.set(name.name, name.ref);
   }
   isVariableRef(name: string): boolean {
     if (this.variable_ref.has(name))
@@ -59,6 +59,11 @@ export class Environment {
     if (this.variables.has(name)) return this.variables.get(name)!;
     if (!this._parent) return undefined;
     return this._parent.getVariableSoft(name);
+  }
+
+  setIsVariableRef(name: string | VariableExpression, value: boolean) {
+    if (typeof name === "string") this.variable_ref.set(name, value);
+    else this.variable_ref.set(name.name, value);
   }
 
   getFunction(name: string) {

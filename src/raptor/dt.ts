@@ -16,10 +16,14 @@ export abstract class RAP_Value<T> {
   getValue() {
     return this.value;
   }
+
   abstract copy(): RAP_Value<T>;
 
-  toString() {
+  valueOf() {
     return this.value;
+  }
+  toString() {
+    return this.value + "";
   }
 }
 
@@ -53,7 +57,40 @@ export class RAP_Boolean extends RAP_Value<boolean> {
     return new RAP_Boolean(this.value);
   }
 }
-export class RAP_Array extends Array<RAP_Any> {}
+export class RAP_Array extends RAP_Value<RAP_Any[] | RAP_Any[][]> {
+  // array is always passed down by reference
+  copy() {
+    return this;
+  }
+  constructor(public readonly dimension = 1) {
+    super(dimension == 1 ? [] : [[]], ValueType.Array);
+  }
+
+  getItem(prop: number[]) {
+    if (prop.length !== this.dimension) {
+      throw new Error(
+        `Expected ${this.dimension} dimensions. Got ${prop.length}`
+      );
+    } else if (this.dimension == 1) {
+      return this.value[prop[0]];
+    } else if (this.dimension == 2) {
+      const d1 = this.value[prop[0]] as RAP_Any[];
+      return d1[prop[1]];
+    }
+  }
+  setItem(prop: number[], value: RAP_Any) {
+    if (prop.length !== this.dimension) {
+      throw new Error(
+        `Expected ${this.dimension} dimensions. Got ${prop.length}`
+      );
+    } else if (this.dimension == 1) {
+      this.value[prop[0]] = value;
+    } else if (this.dimension == 2) {
+      const d1 = this.value[prop[0]] as RAP_Any[];
+      d1[prop[1]] = value;
+    }
+  }
+}
 export class RAP_Undefined extends RAP_Value<undefined> {
   constructor() {
     super(undefined, ValueType.Undefined);

@@ -544,7 +544,7 @@ export class Loop extends Component implements ICloneable<Loop> {
 
     if (block === "loop_start") {
       __interpreter.__pop_stack();
-      const cond = __interpreter.__evaluate_if_expression(conditional_source);
+      const cond = __interpreter.__evaluate_loop_condition(conditional_source);
       if (!cond /** if (condition satisfies to goes out of the block) */) {
         __interpreter.__push_loop_body_to_stack();
         return this._after_Child;

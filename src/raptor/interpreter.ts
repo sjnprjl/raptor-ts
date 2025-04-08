@@ -81,6 +81,13 @@ export class RaptorInterpreter {
     return cond.value;
   }
 
+  __evaluate_loop_condition(source: string): boolean {
+    this.tokenizer.tokenize(source);
+    const if_expression = parse_conditional_expression(this.tokenizer);
+    const cond = if_expression.eval(this.env) as RAP_Boolean;
+    return cond.value;
+  }
+
   __push_loop_start_to_stack() {
     this._block_stack.push("loop_start");
   }

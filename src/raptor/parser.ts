@@ -12,6 +12,7 @@ import {
   ArrayExpression,
   MemberExpression,
   IdentifierExpression,
+  AssignmentExpression,
 } from "./expression-types";
 import { Token, TokenEnum, Tokenizer } from "./tokenizer";
 
@@ -96,7 +97,7 @@ function parse_call_expression(
 function parse_member_expression(tokenizer: Tokenizer) {
   // <ident> '[' ']'
   const call_expr = parse_call_expression(tokenizer);
-  if (tokenizer.check(TokenEnum.ParenOpen)) {
+  if (tokenizer.check(TokenEnum.SqrBracketOpen)) {
     // member_expression
     const arr_expr = parse_array_expr(tokenizer);
     return new MemberExpression(call_expr, arr_expr);
@@ -128,7 +129,10 @@ function parse_multiplicative_expression(
   let op;
   if (
     (op = tokenizer.nextIfTrue(
-      ({ type }) => type === TokenEnum.Mul || type === TokenEnum.Div
+      ({ type }) =>
+        type === TokenEnum.Mul ||
+        type === TokenEnum.Div ||
+        type === TokenEnum.Mod
     ))
   ) {
     expr.left = left;
@@ -189,12 +193,14 @@ function parse_equality_expression(
   expr = new BinaryExpression(null, TokenEnum.EqEq, null)
 ) {
   const left = parse_relational_expression(tokenizer);
+  let op: Token | false;
   if (
-    tokenizer.nextIfTrue(
+    (op = tokenizer.nextIfTrue(
       ({ type }) => type === TokenEnum.EqEq || type === TokenEnum.NotEq
-    )
+    ))
   ) {
     expr.left = left;
+    expr.op = op.type;
     expr.right = parse_equality_expression(tokenizer);
     return expr;
   } else {
@@ -236,22 +242,22 @@ export function parse_conditional_expression(tokenizer: Tokenizer) {
 }
 
 export function parse_assignment_expression(tokenizer: Tokenizer) {
-  const ident = parse_primary_expression(tokenizer);
+  const ident = parse_member_expression(tokenizer);
   if (
-    ident instanceof GroupExpression ||
-    ident instanceof CallExpression ||
-    ident instanceof ArrayExpression
+    !(
+      ident instanceof IdentifierExpression || ident instanceof MemberExpression
+    )
   )
-    throw new Error("Expected identifier");
-  if (ident.value.type !== TokenEnum.Identifier)
     throw new Error(
-      "Expected identifier but got " + TokenEnum[ident.value.type]
+      tokenizer.errorMessage(
+        "Left hand side must be a identifier or member expression (ex: foo[0])"
+      )
     );
   if (!tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Eq)) {
     throw new Error(tokenizer.errorMessage("Expected ':=' after identifier "));
   }
   const expr = parse_conditional_expression(tokenizer);
-  return new BinaryExpression(ident, TokenEnum.Eq, expr);
+  return new AssignmentExpression(ident, expr);
 }
 
 export function parse_expression(tokenizer: Tokenizer): Evaluatable {

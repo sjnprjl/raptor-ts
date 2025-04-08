@@ -1,5 +1,6 @@
 import {
   RAP_Any,
+  RAP_Array,
   RAP_Boolean,
   RAP_Number,
   RAP_String,
@@ -11,6 +12,46 @@ import { Token, TokenEnum } from "./tokenizer";
 
 export interface Evaluatable {
   eval(env: Environment): any;
+}
+
+export class AssignmentExpression implements Evaluatable {
+  constructor(
+    public readonly left: MemberExpression | IdentifierExpression,
+    public readonly right: Evaluatable
+  ) {}
+  eval(env: Environment) {
+    if (this.left instanceof IdentifierExpression) {
+      env.setVariable(
+        new VariableExpression(this.left.value.value),
+        this.right.eval(env).copy()
+      );
+    } else if (this.left instanceof MemberExpression) {
+      const props = this.left.property.eval(env) as RAP_Number[];
+      let array: RAP_Any | undefined = undefined;
+      try {
+        array = this.left.identifier.eval(env) as RAP_Array;
+      } catch (err) {
+        // if not found, it means, array is being initialized
+        if (this.left.identifier instanceof IdentifierExpression) {
+          env.setVariable(
+            new VariableExpression(this.left.identifier.value.value),
+            (array = new RAP_Array(props.length))
+          );
+        }
+      }
+
+      if (!(array instanceof RAP_Array)) {
+        throw new Error("Only array has members.");
+      }
+
+      const properties = props.map((p) => {
+        if (p.type !== ValueType.Number)
+          throw new Error("Only number is allowed.");
+        return p.value;
+      });
+      array.setItem(properties, this.right.eval(env).copy());
+    }
+  }
 }
 
 export class IdentifierExpression implements Evaluatable {
@@ -33,7 +74,18 @@ export class MemberExpression implements Evaluatable {
     public readonly property: ArrayExpression
   ) {}
   eval(env: Environment) {
-    throw new Error("Method not implemented.");
+    const identifier = this.identifier.eval(env);
+    if (identifier instanceof Function || !(identifier instanceof RAP_Array)) {
+      throw new Error("Only array has members.");
+    }
+    const property = this.property.eval(env) as RAP_Number[];
+    property.forEach((p) => {
+      if (p.type !== ValueType.Number)
+        throw new Error("Only number is allowed.");
+    });
+    const props = property.map((p) => p.value);
+
+    return identifier.getItem(props);
   }
 }
 
@@ -100,13 +152,6 @@ export class BinaryExpression implements Evaluatable {
 
   eval(env: Environment) {
     const right = this.right!.eval(env) as RAP_Any;
-    if (this.op === TokenEnum.Eq) {
-      env.setVariable(
-        new VariableExpression((this.left as IdentifierExpression).value.value),
-        right.copy()
-      );
-      return;
-    }
     const left = this.left!.eval(env) as RAP_Any;
 
     switch (this.op) {
@@ -139,12 +184,17 @@ export class BinaryExpression implements Evaluatable {
           return new RAP_Undefined();
         return new RAP_Number(Number(left.value) % Number(right.value));
       case TokenEnum.Plus:
-        if (left.type == ValueType.String || right.type == ValueType.String) {
+        const l = +left.value;
+        const r = +right.value;
+        if (isNaN(l) || isNaN(r))
           return new RAP_String(left.value + right.value);
-        }
-        return new RAP_Number(left.value + right.value);
-      case TokenEnum.Minus:
+        return new RAP_Number(l + r);
+      case TokenEnum.Minus: {
+        const l = +left.value;
+        const r = +right.value;
+        if (isNaN(l) || isNaN(r)) return new RAP_Undefined();
         return new RAP_Number(left.value - right.value);
+      }
     }
   }
 }
@@ -155,8 +205,6 @@ export class UnaryExpression implements Evaluatable {
   ) {}
   eval(env: Environment) {
     const evaluated = this.expr.eval(env) as RAP_Number;
-    if (evaluated.type !== ValueType.Number)
-      throw new Error("Unary operator can only be applied to numbers");
     switch (this.operator) {
       case TokenEnum.Not:
         return new RAP_Boolean(!evaluated.value);
