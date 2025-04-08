@@ -13,6 +13,7 @@ import {
   MemberExpression,
   IdentifierExpression,
   AssignmentExpression,
+  CalleeExpression,
 } from "./expression-types";
 import { Token, TokenEnum, Tokenizer } from "./tokenizer";
 
@@ -81,7 +82,7 @@ function parse_call_expression(
   if (!tokenizer.check(TokenEnum.ParenOpen)) return primary;
 
   // call expression
-  const call_expr = new CallExpression(primary);
+  const call_expr = new CallExpression(new CalleeExpression(primary));
   if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.ParenClose))
     return call_expr;
   call_expr.args.push(parse_expression(tokenizer));
