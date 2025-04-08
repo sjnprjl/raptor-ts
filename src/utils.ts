@@ -1,4 +1,3 @@
-import * as fs from "fs/promises";
 export function LOG(...msg: unknown[]) {
   console.log(...msg);
 }
@@ -34,13 +33,4 @@ export function toUint64(int64: bigint) {
     return int64 + 0x10000000000000000n;
   }
   return int64;
-}
-
-export async function writeToFile(fileName: string, json: string) {
-  await fs.writeFile(fileName, json);
-}
-
-export async function readFromFile(fileName: string) {
-  const data = await fs.readFile(fileName);
-  return new Uint8Array(data);
 }

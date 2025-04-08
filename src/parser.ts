@@ -32,16 +32,7 @@ import {
   UInt32,
   UInt64,
 } from "./types";
-import {
-  LOG,
-  NOT_IMPLEMENTED,
-  STOP,
-  THROW,
-  toUint64,
-  writeToFile,
-} from "./utils";
-
-import jss from "json-stringify-safe";
+import { LOG, NOT_IMPLEMENTED, THROW, toUint64 } from "./utils";
 
 export class Parser {
   private _data: Uint8Array;

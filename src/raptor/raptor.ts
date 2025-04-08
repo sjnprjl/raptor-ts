@@ -31,9 +31,13 @@ import { LiteralExpression } from "./expression-types";
 import Readline from "readline";
 import { stdin, stdout } from "process";
 import { RAP_String } from "./dt";
+import { Parser } from "../parser";
+import { globalEnv } from "./constant";
 
 export class Raptor {
-  private tokens: ASM_Object<BaseObject>[];
+  private readonly parser: Parser;
+  private readonly raptorBinary: Uint8Array;
+  private tokens: ASM_Object<BaseObject>[] = [];
   private cursor = 0;
   private _current_context:
     | Oval
@@ -57,8 +61,9 @@ export class Raptor {
 
   private __interpreter = new RaptorInterpreter(this._code_tokenizer, this.env);
 
-  constructor(tokens: ASM_Object<BaseObject>[], private env: Environment) {
-    this.tokens = tokens;
+  constructor(raptorBinary: Uint8Array, private env: Environment = globalEnv) {
+    this.raptorBinary = raptorBinary;
+    this.parser = new Parser(this.raptorBinary);
   }
 
   private readSubChart() {
@@ -113,6 +118,7 @@ export class Raptor {
    * Parse properly to get the sub-charts
    */
   public parse() {
+    this._parse_data();
     this.serialization_version = this.next();
     /** Really don't know if this means master mode or not */
     this.master_mode = this.next();
@@ -139,6 +145,12 @@ export class Raptor {
     if (this.peek() !== undefined) {
       throw new Error("could not parse correctly.");
     }
+    return this.tokens;
+  }
+
+  private _parse_data() {
+    const data = this.parser.run();
+    this.tokens = data;
   }
 
   interpret() {
