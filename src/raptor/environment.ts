@@ -1,6 +1,6 @@
 import Readline from "readline/promises";
 import { stdin, stdout } from "process";
-import { SubChart } from "../types";
+import { SubChart } from "../binary-parser/types";
 import { VariableExpression } from "./expression-types";
 import { RAP_Any, RAP_Value } from "./dt";
 

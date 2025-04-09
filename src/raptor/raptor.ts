@@ -2,10 +2,9 @@ import {
   BinaryArray,
   ObjectNull,
   ObjectString,
-  ObjectWithMapTyped,
-} from "../commonclasses";
-import { SubChart } from "../types";
-import { LOG, STOP, THROW } from "../utils";
+} from "../binary-parser/commonclasses";
+import { SubChart } from "../binary-parser/types";
+import { LOG, THROW } from "../binary-parser/utils";
 import {
   ASM_Object,
   BaseObject,
@@ -19,19 +18,17 @@ import {
   Parallelogram,
   Rectangle,
   Ref,
-  Subchart_Kinds as Sub_Chart_Kinds,
+  Sub_Chart_Kinds,
   System_Boolean,
   System_Guid,
   System_Int32,
 } from "./assembly";
-import { TokenEnum, Tokenizer } from "./tokenizer";
+import { Tokenizer } from "./tokenizer";
 import { Environment } from "./environment";
 import { RaptorInterpreter } from "./interpreter";
 import { LiteralExpression } from "./expression-types";
-import Readline from "readline";
-import { stdin, stdout } from "process";
 import { RAP_String } from "./dt";
-import { Parser } from "../parser";
+import { Parser } from "../binary-parser/parser";
 import { globalEnv } from "./constant";
 
 export class Raptor {

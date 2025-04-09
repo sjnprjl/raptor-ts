@@ -16,7 +16,7 @@ import {
   InternalObjectTypeE,
   InternalPrimitiveTypeE,
 } from "./enums";
-import { ASM_Object, assembly, BaseObject, Ref } from "./raptor/assembly";
+import { ASM_Object, assembly, BaseObject, Ref } from "../raptor/assembly";
 import {
   Byte,
   DateTime,
@@ -24,7 +24,6 @@ import {
   Int16,
   Int32,
   Int64,
-  InternalPrimitiveType,
   OBoolean,
   SByte,
   TimeSpan,
@@ -62,17 +61,6 @@ export class Parser {
       console.warn(`key: ${key} is already included in the object map table`);
     }
     this._objectMapIdTable2[key] = data;
-  }
-
-  private reset() {
-    this._expectedBinaryType = BinaryTypeEnum.ObjectUrt;
-    this._expectedTypeInformation = null;
-    this._assemblyTable = {};
-    this._headers = [];
-    this._objects = [];
-    this._objectMapIdTable = {};
-    this._stack = [];
-    // this._refTable = {};
   }
 
   get cursor() {

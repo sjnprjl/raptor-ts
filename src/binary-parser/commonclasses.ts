@@ -6,7 +6,7 @@ import {
   InternalPrimitiveTypeE,
 } from "./enums";
 import { Parser } from "./parser";
-import { OString } from "./raptor/assembly";
+import { OString } from "../raptor/assembly";
 import { ICloneable } from "./types";
 import { THROW } from "./utils";
 

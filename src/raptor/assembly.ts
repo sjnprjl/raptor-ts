@@ -2,7 +2,7 @@ import {
   ObjectNull,
   ObjectString,
   SerializedStreamHeader,
-} from "../commonclasses";
+} from "../binary-parser/commonclasses";
 import {
   Byte,
   DateTime,
@@ -10,11 +10,9 @@ import {
   IEvaluatable,
   Int16,
   Int32,
-  InternalPrimitiveType,
   OBoolean,
   SubChart,
-} from "../types";
-import { LOG, STOP } from "../utils";
+} from "../binary-parser/types";
 import { Environment } from "./environment";
 import {
   CalleeExpression,
@@ -24,12 +22,7 @@ import {
   VariableExpression,
 } from "./expression-types";
 import { RaptorInterpreter } from "./interpreter";
-import {
-  parse_assignment_expression,
-  parse_conditional_expression,
-  parse_expression,
-  parse_function_declaration,
-} from "./parser";
+import { parse_conditional_expression, parse_expression } from "./parser";
 import { Tokenizer } from "./tokenizer";
 
 enum RectangleKindE {
@@ -135,12 +128,12 @@ export class System_Boolean extends BaseObject {
   public m_value?: OBoolean;
 }
 
-export class Subchart_Kinds
+export class Sub_Chart_Kinds
   extends EnumBaseClass
-  implements ICloneable<Subchart_Kinds>
+  implements ICloneable<Sub_Chart_Kinds>
 {
-  clone(): Subchart_Kinds {
-    const kind = new Subchart_Kinds(this.objectId);
+  clone(): Sub_Chart_Kinds {
+    const kind = new Sub_Chart_Kinds(this.objectId);
     kind.value__ = this.value__;
     return kind;
   }
@@ -610,7 +603,7 @@ export const assembly = {
   },
   2: {
     raptor: {
-      Subchart_Kinds: Subchart_Kinds,
+      Subchart_Kinds: Sub_Chart_Kinds,
       Oval: Oval,
       "Component+FootPrint": FootPrint,
       Parallelogram: Parallelogram,

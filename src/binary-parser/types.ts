@@ -6,12 +6,12 @@ import {
   OString,
   Oval,
   Oval_Procedure,
-  Subchart_Kinds,
+  Sub_Chart_Kinds,
   System_Int32,
-} from "./raptor/assembly";
-import { Environment } from "./raptor/environment";
-import { RaptorInterpreter } from "./raptor/interpreter";
-import { Tokenizer } from "./raptor/tokenizer";
+} from "../raptor/assembly";
+import { Environment } from "../raptor/environment";
+import { RaptorInterpreter } from "../raptor/interpreter";
+import { Tokenizer } from "../raptor/tokenizer";
 
 export interface ICloneable<T> {
   clone(): T;
@@ -115,7 +115,7 @@ export class SubChart {
   private _magicArray?: ASM_Object<BinaryArray>;
   constructor(
     public readonly name: ASM_Object<OString>,
-    public readonly kind: ASM_Object<Subchart_Kinds>,
+    public readonly kind: ASM_Object<Sub_Chart_Kinds>,
     public readonly magic_number?: ASM_Object<System_Int32>
   ) {}
 
