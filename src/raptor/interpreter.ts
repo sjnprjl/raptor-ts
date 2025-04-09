@@ -1,4 +1,3 @@
-import stringify from "json-stringify-safe";
 import { RAP_Boolean } from "./dt";
 import { Environment } from "./environment";
 import {
@@ -14,7 +13,7 @@ import {
   parse_expression,
   parse_function_declaration,
 } from "./parser";
-import { Token, TokenEnum, Tokenizer } from "./tokenizer";
+import { Tokenizer } from "./tokenizer";
 
 export class InterpreterError extends Error {}
 
