@@ -14,7 +14,7 @@
     "web"
   ],
   "author": "Sujan Parajuli",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@types/json-stringify-safe": "^5.0.3",
     "@types/node": "^22.13.14",
