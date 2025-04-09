@@ -57,7 +57,6 @@ export class Raptor {
   private magic_guid_at_last?: ASM_Object<System_Guid>;
   private _code_tokenizer = new Tokenizer();
   private _stack_frame: (Ref<Component> | ObjectNull | Component)[] = [];
-  private _block_stack: ("if" | "sc" | "proc")[] = [];
 
   private __interpreter = new RaptorInterpreter(this._code_tokenizer, this.env);
 
@@ -101,7 +100,7 @@ export class Raptor {
         !(component.object instanceof Oval) &&
         !(component.object instanceof Oval_Procedure)
       ) {
-        THROW("component.object instanceof Component == false");
+        THROW("Sub Chart top component is not Oval or Oval_Procedure");
       }
       subChart.addRootComponent(component);
       if (!(this.peek().object instanceof BinaryArray)) {
@@ -153,96 +152,106 @@ export class Raptor {
     this.tokens = data;
   }
 
-  interpret() {
+  public onInput: (prompt: string) => void = () => {
+    throw new Error("onInput is not defined");
+  };
+  public onOutput?: (outputString: string) => void = () => {
+    throw new Error("onOutput is not defined");
+  };
+  public setInputAnswer(answer: string) {
+    const input = new LiteralExpression(new RAP_String(answer));
+    this.__interpreter.assign_input(input);
+  }
+  public startExecution() {
+    if (this._interruption) {
+      this._interruption = false;
+      this.__interpreter.reset_interrupt();
+    }
+  }
+
+  private _interruption: boolean = false;
+
+  private _done = false;
+
+  public step() {
+    if (this._interruption || this._done) return false;
+
     this._current_context ??= this.sub_charts[0];
-    let running = true;
-    let readline: Readline.Interface | undefined;
-    while (running) {
-      // this.__interpreter.debug_print_env();
-      if (this.__interpreter.is_interrupted()) {
-        if (
-          this.__interpreter.get_interrupt() ===
-          RaptorInterpreter.INTERRUPT_OUTPUT
-        ) {
-          this.__interpreter.reset_interrupt();
-          console.log(this.__interpreter.get_promptString());
-        } else if (
-          this.__interpreter.get_interrupt() ===
-          RaptorInterpreter.INTERRUPT_INPUT
-        ) {
-          running = false;
-          readline = Readline.createInterface({
-            input: stdin,
-            output: stdout,
-          });
-
-          console.log(this.__interpreter.get_promptString());
-          readline.on("line", (answer) => {
-            const input = new LiteralExpression(new RAP_String(answer));
-            this.__interpreter.assign_input(input);
-            this.__interpreter.reset_interrupt();
-            readline?.close();
-            this.interpret();
-          });
-        }
-
-        continue;
+    if (this.__interpreter.is_interrupted()) {
+      this._interruption = true;
+      if (
+        this.__interpreter.get_interrupt() ===
+        RaptorInterpreter.INTERRUPT_OUTPUT
+      ) {
+        this.onOutput?.call(this, this.__interpreter.get_promptString());
+      } else if (
+        this.__interpreter.get_interrupt() === RaptorInterpreter.INTERRUPT_INPUT
+      ) {
+        this.onInput?.call(this, this.__interpreter.get_promptString());
       }
+      return true;
+    }
 
-      if (this._current_context instanceof SubChart) {
-        const next = this._current_context.next(this.__interpreter);
-        this._current_context = next;
-      } else if (this._current_context instanceof Oval) {
-        this._current_context = this._current_context.next(this.__interpreter);
-      } else if (this._current_context instanceof Oval_Procedure) {
-        this._current_context = this._current_context.next(this.__interpreter);
-      } else if (this._current_context instanceof Ref) {
-        const ref = this._current_context.valueOf();
-        if (ref instanceof Rectangle && ref.isFunctionCall()) {
-          this._current_context = ref.next(this.__interpreter);
-          this._stack_frame.push(ref._Successor);
-        } else if (ref instanceof IF_Control) {
-          this._stack_frame.push(ref._Successor);
-          this._current_context = ref.next(this.__interpreter);
-        } else if (ref instanceof Loop) {
-          this._current_context = ref.next(this.__interpreter);
-          if (
-            this.__interpreter.peek_block_stack() === "loop_start" ||
-            this.__interpreter.peek_block_stack() === "loop_body"
-          ) {
-            this._stack_frame.push(ref);
-          }
-        } else this._current_context = ref;
-      } else if (this._current_context instanceof Parallelogram) {
-        this._current_context = this._current_context.next(this.__interpreter);
-      } else if (this._current_context instanceof Rectangle) {
-        this._current_context = this._current_context.next(this.__interpreter);
-      } else if (this._current_context instanceof Loop) {
-        const next = this._current_context.next(this.__interpreter);
+    if (this._current_context instanceof SubChart) {
+      const next = this._current_context.next(this.__interpreter);
+      this._current_context = next;
+    } else if (this._current_context instanceof Oval) {
+      this._current_context = this._current_context.next(this.__interpreter);
+    } else if (this._current_context instanceof Oval_Procedure) {
+      this._current_context = this._current_context.next(this.__interpreter);
+    } else if (this._current_context instanceof Ref) {
+      const ref = this._current_context.valueOf();
+      if (ref instanceof Rectangle && ref.isFunctionCall()) {
+        this._current_context = ref.next(this.__interpreter);
+        this._stack_frame.push(ref._Successor);
+      } else if (ref instanceof IF_Control) {
+        this._stack_frame.push(ref._Successor);
+        this._current_context = ref.next(this.__interpreter);
+      } else if (ref instanceof Loop) {
+        this._current_context = ref.next(this.__interpreter);
         if (
           this.__interpreter.peek_block_stack() === "loop_start" ||
           this.__interpreter.peek_block_stack() === "loop_body"
         ) {
-          this._stack_frame.push(this._current_context);
+          this._stack_frame.push(ref);
         }
-        this._current_context = next;
-      } else if (this._current_context instanceof ObjectNull) {
-        this._current_context = this._stack_frame.pop();
-        if (this._current_context instanceof Loop) {
-        } else this.__interpreter.__pop_stack();
-      } else if (this._current_context instanceof IF_Control) {
-        this._current_context = this._current_context.next(this.__interpreter);
-      } else if (this._current_context === undefined) {
-        // DONE
-        running = false;
-      } else {
-        LOG(this._current_context);
-        throw new Error("unknown type");
+      } else this._current_context = ref;
+    } else if (this._current_context instanceof Parallelogram) {
+      this._current_context = this._current_context.next(this.__interpreter);
+    } else if (this._current_context instanceof Rectangle) {
+      this._current_context = this._current_context.next(this.__interpreter);
+    } else if (this._current_context instanceof Loop) {
+      const next = this._current_context.next(this.__interpreter);
+      if (
+        this.__interpreter.peek_block_stack() === "loop_start" ||
+        this.__interpreter.peek_block_stack() === "loop_body"
+      ) {
+        this._stack_frame.push(this._current_context);
       }
+      this._current_context = next;
+    } else if (this._current_context instanceof ObjectNull) {
+      this._current_context = this._stack_frame.pop();
+      if (!this._current_context) this._done = true;
+      if (this._current_context instanceof Loop) {
+      } else this.__interpreter.__pop_stack();
+    } else if (this._current_context instanceof IF_Control) {
+      this._current_context = this._current_context.next(this.__interpreter);
+    } else if (this._current_context === undefined) {
+      this._done = true;
+      return false;
+    } else {
+      LOG(this._current_context);
+      throw new Error("unknown type");
     }
+    return true;
   }
 
-  async step() {}
+  interpret() {
+    let running = true;
+    while (running) {
+      running = this.step();
+    }
+  }
 
   private next<T extends BaseObject>(): ASM_Object<T> {
     return this.tokens[this.cursor++] as ASM_Object<T>;
