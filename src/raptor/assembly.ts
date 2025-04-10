@@ -22,7 +22,7 @@ import {
   VariableExpression,
 } from "./expression-types";
 import { RaptorInterpreter } from "./interpreter";
-import { parse_conditional_expression, parse_expression } from "./parser";
+import { parseConditionalExpression, parseExpression } from "./parser";
 import { Tokenizer } from "./tokenizer";
 
 enum RectangleKindE {
@@ -247,16 +247,16 @@ export class Parallelogram
       variable = this._text_str.valueOf();
     }
 
-    const varExpr = is_input ? interpreter.__parse_expression(variable) : null;
-    const promptSourceExpr = interpreter.__parse_expression(source);
+    const varExpr = is_input ? interpreter.parseExpression(variable) : null;
+    const promptSourceExpr = interpreter.parseExpression(source);
 
     if (is_input) {
-      interpreter.__evaluate_read(
+      interpreter.evaluateRead(
         promptSourceExpr,
         new VariableExpression((varExpr as LiteralExpression).value.value)
       );
     } else {
-      interpreter.__evaluate_write(promptSourceExpr);
+      interpreter.evaluateWrite(promptSourceExpr);
     }
 
     return this._Successor;
@@ -275,9 +275,9 @@ export class Parallelogram
     }
 
     tokenizer.tokenize(variable);
-    const varExpr = parse_expression(tokenizer);
+    const varExpr = parseExpression(tokenizer);
     tokenizer.tokenize(source);
-    const promptSourceExpr = parse_expression(tokenizer);
+    const promptSourceExpr = parseExpression(tokenizer);
 
     return { varExpr, promptSourceExpr, isInput };
 
@@ -309,7 +309,7 @@ export class IF_Control extends Component implements ICloneable<IF_Control> {
 
   next(interpreter: RaptorInterpreter) {
     const source = this._text_str.valueOf();
-    const cond = interpreter.__evaluate_if_expression(source);
+    const cond = interpreter.evaluateIfExpression(source);
     if (cond === true) return this._left_Child;
     else return this._right_Child;
   }
@@ -321,7 +321,7 @@ export class IF_Control extends Component implements ICloneable<IF_Control> {
   }
 
   private eval_condition(tokenizer: Tokenizer, env: Environment) {
-    const expr = parse_conditional_expression(tokenizer);
+    const expr = parseConditionalExpression(tokenizer);
     const cond = expr.eval(env);
 
     if (cond === true) {
@@ -383,7 +383,7 @@ export class Oval extends Component implements ICloneable<Oval> {
   next(interpreter: RaptorInterpreter) {
     const _text_str = this._text_str.valueOf();
     if (_text_str === "Start") {
-      interpreter.__evaluate_sub_chart();
+      interpreter.evaluateSubChart();
     } else if (_text_str === "End") {
     } else {
       throw new Error("Unknown command: " + _text_str);
@@ -473,10 +473,10 @@ export class Rectangle extends Component implements ICloneable<Rectangle> {
     const source = this._text_str.valueOf();
     switch (kind) {
       case RectangleKindE.VariableAssignment:
-        interpreter.__evaluate_assignment_expression(source);
+        interpreter.evaluateAssignmentExpression(source);
         return this._Successor;
       case RectangleKindE.FunctionCall:
-        const expression = interpreter.__evaluate_call_expression(source);
+        const expression = interpreter.evaluateCallExpression(source);
 
         let name = "";
         if (expression instanceof IdentifierExpression) {
@@ -538,19 +538,19 @@ export class Loop extends Component implements ICloneable<Loop> {
   }
   next(__interpreter: RaptorInterpreter) {
     const conditional_source = this._text_str.valueOf();
-    const block = __interpreter.peek_block_stack();
+    const block = __interpreter.peekBlockStack();
 
     if (block === "loop_start") {
-      __interpreter.__pop_stack();
-      const cond = __interpreter.__evaluate_loop_condition(conditional_source);
+      __interpreter.popStack();
+      const cond = __interpreter.evaluateLoopCondition(conditional_source);
       if (!cond /** if (condition satisfies to goes out of the block) */) {
-        __interpreter.__push_loop_body_to_stack();
+        __interpreter.pushLoopBodyToStack();
         return this._after_Child;
       } else return this._Successor;
     } else {
       // I think this condition always satisfy?
-      if (block === "loop_body") __interpreter.__pop_stack();
-      __interpreter.__push_loop_start_to_stack();
+      if (block === "loop_body") __interpreter.popStack();
+      __interpreter.pushLoopStartToStack();
       return this._before_Child;
     }
   }
@@ -567,7 +567,7 @@ export class Oval_Procedure
 
   next(__interpreter: RaptorInterpreter) {
     const source = this._text_str.valueOf();
-    __interpreter.__evaluate_procedure(source);
+    __interpreter.evaluateProcedure(source);
 
     return this._Successor;
   }

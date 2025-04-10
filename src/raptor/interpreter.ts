@@ -8,14 +8,12 @@ import {
   VariableExpression,
 } from "./expression-types";
 import {
-  parse_assignment_expression,
-  parse_conditional_expression,
-  parse_expression,
-  parse_function_declaration,
+  parseAssignmentExpression,
+  parseConditionalExpression,
+  parseExpression,
+  parseFunctionExpression,
 } from "./parser";
 import { Tokenizer } from "./tokenizer";
-
-export class InterpreterError extends Error {}
 
 export class RaptorInterpreter {
   /**
@@ -23,17 +21,12 @@ export class RaptorInterpreter {
    * proc -> Oval_Procedure
    * func -> Sub_Chart
    */
-  private _block_stack: (
-    | "if"
-    | "proc"
-    | "func"
-    | "loop_start"
-    | "loop_body"
-  )[] = [];
+  private _blockStack: ("if" | "proc" | "func" | "loop_start" | "loop_body")[] =
+    [];
 
-  private _env_stack: Environment[] = [];
+  private _envStack: Environment[] = [];
 
-  private _last_call_expression?: CallExpression;
+  private _lastCallExpression?: CallExpression;
 
   static INTERRUPT_NONE = 0;
   static INTERRUPT_INPUT = 1;
@@ -44,88 +37,88 @@ export class RaptorInterpreter {
   private _promptString = "";
   private _interruptVariable!: VariableExpression;
 
-  constructor(private readonly tokenizer: Tokenizer, env: Environment) {
-    this._env_stack.push(env);
+  constructor(private readonly _tokenizer: Tokenizer, env: Environment) {
+    this._envStack.push(env);
   }
 
-  peek_block_stack() {
-    return this._block_stack[this._block_stack.length - 1];
+  peekBlockStack() {
+    return this._blockStack[this._blockStack.length - 1];
   }
 
-  get_promptString() {
+  get promptString() {
     return this._promptString;
   }
 
-  assign_input(value: LiteralExpression) {
+  assignInput(value: LiteralExpression) {
     this.env.setVariable(this._interruptVariable, value.eval(this.env));
   }
 
-  get _tokenizer() {
-    return this.tokenizer;
+  get tokenizer() {
+    return this._tokenizer;
   }
 
   get env() {
-    return this._env_stack[this._env_stack.length - 1];
+    return this._envStack[this._envStack.length - 1];
   }
 
-  __evaluate_assignment_expression(source: string) {
+  evaluateAssignmentExpression(source: string) {
     this.tokenizer.tokenize(source);
-    const assignment_expression = parse_assignment_expression(this.tokenizer);
+    const assignment_expression = parseAssignmentExpression(this.tokenizer);
     assignment_expression.eval(this.env);
   }
-  __evaluate_if_expression(source: string): boolean {
+  evaluateIfExpression(source: string): boolean {
     this.tokenizer.tokenize(source);
-    this._block_stack.push("if");
-    const if_expression = parse_conditional_expression(this.tokenizer);
+    this._blockStack.push("if");
+    const if_expression = parseConditionalExpression(this.tokenizer);
     const cond = if_expression.eval(this.env) as RAP_Boolean;
     return cond.value;
   }
 
-  __evaluate_loop_condition(source: string): boolean {
+  evaluateLoopCondition(source: string): boolean {
     this.tokenizer.tokenize(source);
-    const if_expression = parse_conditional_expression(this.tokenizer);
+    const if_expression = parseConditionalExpression(this.tokenizer);
     const cond = if_expression.eval(this.env) as RAP_Boolean;
     return cond.value;
   }
 
-  __push_loop_start_to_stack() {
-    this._block_stack.push("loop_start");
+  pushLoopStartToStack() {
+    this._blockStack.push("loop_start");
   }
-  __push_loop_body_to_stack() {
-    this._block_stack.push("loop_body");
+  pushLoopBodyToStack() {
+    this._blockStack.push("loop_body");
   }
-  __evaluate_sub_chart() {
-    this._block_stack.push("func");
+  evaluateSubChart() {
+    this._blockStack.push("func");
   }
-  __evaluate_procedure(source: string) {
-    this._block_stack.push("proc");
+  evaluateProcedure(source: string) {
+    this._blockStack.push("proc");
     this.tokenizer.tokenize(source);
-    const call_expression = this._last_call_expression;
+    const call_expression = this._lastCallExpression;
     if (!call_expression || !(call_expression instanceof CallExpression))
       throw new Error(
         "Expected call expression. Required for procedure. It shouldn't occur. Possible a bug."
       );
-    const function_declaration = parse_function_declaration(this.tokenizer);
+    const function_declaration = parseFunctionExpression(this.tokenizer);
     function_declaration.args = call_expression.args;
     function_declaration.eval(this.env);
   }
 
-  __get_identifier_name(identifier: IdentifierExpression) {
+  getIdentifierName(identifier: IdentifierExpression) {
     return identifier.value.value;
   }
 
-  __evaluate_call_expression(
+  evaluateCallExpression(
     source: string
   ): CallExpression | IdentifierExpression {
     this.tokenizer.tokenize(source);
 
-    const expression = parse_expression(this.tokenizer);
+    const expression = parseExpression(this.tokenizer);
 
     if (expression instanceof CallExpression) {
       const localEnv = new Environment();
       localEnv.setParent(this.env);
-      this._env_stack.push(localEnv);
-      this._last_call_expression = expression;
+      this._envStack.push(localEnv);
+      this._lastCallExpression = expression;
     }
 
     if (
@@ -136,43 +129,39 @@ export class RaptorInterpreter {
     throw new Error("Expected call expression or identifier expression");
   }
 
-  __evaluate_read(prompt: Evaluatable, variable: VariableExpression) {
+  evaluateRead(prompt: Evaluatable, variable: VariableExpression) {
     this._interrupt = RaptorInterpreter.INTERRUPT_INPUT;
     this._promptString = "" + prompt.eval(this.env).value;
     this._interruptVariable = variable;
   }
-  __evaluate_write(output: Evaluatable) {
+  evaluateWrite(output: Evaluatable) {
     this._interrupt = RaptorInterpreter.INTERRUPT_OUTPUT;
     this._promptString = "" + output.eval(this.env).value.toString();
   }
 
-  __pop_stack() {
-    if (this._block_stack.length > 0) {
-      const block = this._block_stack.pop();
+  popStack() {
+    if (this._blockStack.length > 0) {
+      const block = this._blockStack.pop();
       if (block === "proc") {
-        this._env_stack.pop();
+        this._envStack.pop();
       }
     }
   }
 
-  debug_print_env() {
-    console.log(this.env);
-  }
-
-  reset_interrupt() {
+  resetInterrupt() {
     this._interrupt = 0;
   }
 
-  get_interrupt() {
+  get interrupt() {
     return this._interrupt;
   }
 
-  is_interrupted() {
+  isInterrupted() {
     return this._interrupt !== 0;
   }
 
-  __parse_expression(source: string) {
+  parseExpression(source: string) {
     this.tokenizer.tokenize(source);
-    return parse_expression(this.tokenizer);
+    return parseExpression(this.tokenizer);
   }
 }

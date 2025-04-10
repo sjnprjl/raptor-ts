@@ -18,19 +18,19 @@ import {
 import { Token, TokenEnum, Tokenizer } from "./tokenizer";
 
 export function parse_group_expr(tokenizer: Tokenizer) {
-  const expression = parse_expression(tokenizer);
+  const expression = parseExpression(tokenizer);
   if (!tokenizer.nextIfTrue(({ type }) => type === TokenEnum.ParenClose)) {
     throw new Error("Expected ')' but got " + tokenizer.next()?.value);
   }
   return new GroupExpression(expression);
 }
 
-export function parse_array_expr(tokenizer: Tokenizer) {
+export function parseArrayExpression(tokenizer: Tokenizer) {
   const array = new ArrayExpression([]);
   while (
     !tokenizer.nextIfTrue(({ type }) => type === TokenEnum.SqrBracketClose)
   ) {
-    const expression = parse_expression(tokenizer);
+    const expression = parseExpression(tokenizer);
     array.elements.push(expression);
     if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Comma)) {
       continue;
@@ -45,7 +45,7 @@ export function parse_array_expr(tokenizer: Tokenizer) {
   return array;
 }
 
-export function parse_primary_expression(
+export function parsePrimaryExpression(
   tokenizer: Tokenizer
 ):
   | GroupExpression
@@ -59,7 +59,7 @@ export function parse_primary_expression(
     case TokenEnum.ParenOpen:
       return parse_group_expr(tokenizer);
     case TokenEnum.SqrBracketOpen:
-      return parse_array_expr(tokenizer);
+      return parseArrayExpression(tokenizer);
     case TokenEnum.Identifier:
       return new IdentifierExpression(token);
     case TokenEnum.String:
@@ -75,58 +75,58 @@ export function parse_primary_expression(
   }
 }
 
-function parse_call_expression(
+function parseCallExpression(
   tokenizer: Tokenizer
-): ReturnType<typeof parse_primary_expression> | CallExpression {
-  const primary = parse_primary_expression(tokenizer);
+): ReturnType<typeof parsePrimaryExpression> | CallExpression {
+  const primary = parsePrimaryExpression(tokenizer);
   if (!tokenizer.check(TokenEnum.ParenOpen)) return primary;
 
   // call expression
   const call_expr = new CallExpression(new CalleeExpression(primary));
   if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.ParenClose))
     return call_expr;
-  call_expr.args.push(parse_expression(tokenizer));
+  call_expr.args.push(parseExpression(tokenizer));
   while (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Comma)) {
     if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.ParenClose))
       break;
-    call_expr.args.push(parse_expression(tokenizer));
+    call_expr.args.push(parseExpression(tokenizer));
   }
   tokenizer.next(); // eat ')
   return call_expr;
 }
 
-function parse_member_expression(tokenizer: Tokenizer) {
+function parseMemberExpression(tokenizer: Tokenizer) {
   // <ident> '[' ']'
-  const call_expr = parse_call_expression(tokenizer);
+  const call_expr = parseCallExpression(tokenizer);
   if (tokenizer.check(TokenEnum.SqrBracketOpen)) {
     // member_expression
-    const arr_expr = parse_array_expr(tokenizer);
+    const arr_expr = parseArrayExpression(tokenizer);
     return new MemberExpression(call_expr, arr_expr);
   } else return call_expr;
 }
 
-function parse_unary_expression(
+function parseUnaryExpression(
   tokenizer: Tokenizer
-): ReturnType<typeof parse_member_expression> | UnaryExpression {
+): ReturnType<typeof parseMemberExpression> | UnaryExpression {
   const unary_operator = tokenizer.nextIfTrue(({ type }) =>
     [TokenEnum.Not, TokenEnum.Plus, TokenEnum.Minus].some((t) => t === type)
   );
 
   if (unary_operator === false) {
-    return parse_member_expression(tokenizer);
+    return parseMemberExpression(tokenizer);
   } else {
     return new UnaryExpression(
       unary_operator.type,
-      parse_unary_expression(tokenizer)
+      parseUnaryExpression(tokenizer)
     );
   }
 }
 
-function parse_multiplicative_expression(
+function parseMultiplicativeExpression(
   tokenizer: Tokenizer,
   expr = new BinaryExpression(null, TokenEnum.Invalid, null)
 ) {
-  const left = parse_unary_expression(tokenizer);
+  const left = parseUnaryExpression(tokenizer);
   let op;
   if (
     (op = tokenizer.nextIfTrue(
@@ -138,18 +138,18 @@ function parse_multiplicative_expression(
   ) {
     expr.left = left;
     expr.op = (op as Token).type;
-    expr.right = parse_multiplicative_expression(tokenizer);
+    expr.right = parseMultiplicativeExpression(tokenizer);
     return expr;
   } else {
     return left;
   }
 }
 
-function parse_additive_expression(
+function parseAdditiveExpression(
   tokenizer: Tokenizer,
   expr = new BinaryExpression(null, TokenEnum.Invalid, null)
 ) {
-  const left = parse_multiplicative_expression(tokenizer);
+  const left = parseMultiplicativeExpression(tokenizer);
   let op;
   if (
     (op = tokenizer.nextIfTrue(
@@ -158,18 +158,18 @@ function parse_additive_expression(
   ) {
     expr.left = left;
     expr.op = (op as Token).type;
-    expr.right = parse_additive_expression(tokenizer);
+    expr.right = parseAdditiveExpression(tokenizer);
     return expr;
   } else {
     return left;
   }
 }
 
-function parse_relational_expression(
+function parseRelationalExpression(
   tokenizer: Tokenizer,
   expr = new BinaryExpression(null, TokenEnum.Invalid, null)
 ) {
-  const left = parse_additive_expression(tokenizer);
+  const left = parseAdditiveExpression(tokenizer);
   let op;
   if (
     (op = tokenizer.nextIfTrue(
@@ -182,18 +182,18 @@ function parse_relational_expression(
   ) {
     expr.left = left;
     expr.op = (op as Token).type;
-    expr.right = parse_additive_expression(tokenizer);
+    expr.right = parseAdditiveExpression(tokenizer);
     return expr;
   } else {
     return left;
   }
 }
 
-function parse_equality_expression(
+function parseEqualityExpression(
   tokenizer: Tokenizer,
   expr = new BinaryExpression(null, TokenEnum.EqEq, null)
 ) {
-  const left = parse_relational_expression(tokenizer);
+  const left = parseRelationalExpression(tokenizer);
   let op: Token | false;
   if (
     (op = tokenizer.nextIfTrue(
@@ -202,48 +202,48 @@ function parse_equality_expression(
   ) {
     expr.left = left;
     expr.op = op.type;
-    expr.right = parse_equality_expression(tokenizer);
+    expr.right = parseEqualityExpression(tokenizer);
     return expr;
   } else {
     return left;
   }
 }
 
-function parse_and_expression(
+function parseAndExpression(
   tokenizer: Tokenizer,
   expr = new BinaryExpression(null, TokenEnum.And, null)
 ) {
-  const left = parse_equality_expression(tokenizer);
+  const left = parseEqualityExpression(tokenizer);
   if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.And)) {
     expr.left = left;
-    expr.right = parse_equality_expression(tokenizer);
+    expr.right = parseAndExpression(tokenizer);
     return expr;
   } else {
     return left;
   }
 }
 
-function parse_or_expression(
+function parseOrExpression(
   tokenizer: Tokenizer,
   expr = new BinaryExpression(null, TokenEnum.Or, null)
 ) {
-  const left = parse_and_expression(tokenizer);
+  const left = parseAndExpression(tokenizer);
   if (tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Or)) {
     expr.left = left;
-    expr.right = parse_equality_expression(tokenizer);
+    expr.right = parseOrExpression(tokenizer);
     return expr;
   } else {
     return left;
   }
 }
 
-export function parse_conditional_expression(tokenizer: Tokenizer) {
-  const expr = parse_or_expression(tokenizer);
+export function parseConditionalExpression(tokenizer: Tokenizer) {
+  const expr = parseOrExpression(tokenizer);
   return expr;
 }
 
-export function parse_assignment_expression(tokenizer: Tokenizer) {
-  const ident = parse_member_expression(tokenizer);
+export function parseAssignmentExpression(tokenizer: Tokenizer) {
+  const ident = parseMemberExpression(tokenizer);
   if (
     !(
       ident instanceof IdentifierExpression || ident instanceof MemberExpression
@@ -257,17 +257,17 @@ export function parse_assignment_expression(tokenizer: Tokenizer) {
   if (!tokenizer.nextIfTrue(({ type }) => type === TokenEnum.Eq)) {
     throw new Error(tokenizer.errorMessage("Expected ':=' after identifier "));
   }
-  const expr = parse_conditional_expression(tokenizer);
+  const expr = parseConditionalExpression(tokenizer);
   return new AssignmentExpression(ident, expr);
 }
 
-export function parse_expression(tokenizer: Tokenizer): Evaluatable {
-  const expression = parse_conditional_expression(tokenizer);
+export function parseExpression(tokenizer: Tokenizer): Evaluatable {
+  const expression = parseConditionalExpression(tokenizer);
 
   return expression;
 }
 
-export function parse_function_declaration(
+export function parseFunctionExpression(
   tokenizer: Tokenizer
 ): FunctionDeclaration {
   const identifier = tokenizer.next();

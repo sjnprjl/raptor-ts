@@ -36,7 +36,7 @@ export class Raptor {
   private readonly raptorBinary: Uint8Array;
   private tokens: ASM_Object<BaseObject>[] = [];
   private cursor = 0;
-  private _current_context:
+  private _currentContext:
     | Oval
     | Oval_Procedure
     | Ref<Component | ObjectNull>
@@ -45,21 +45,40 @@ export class Raptor {
     | Component
     | undefined;
 
-  private serialization_version?: ASM_Object<System_Int32>;
-  private master_mode?: ASM_Object<System_Boolean>;
-  private sub_charts_count?: ASM_Object<System_Int32>;
-  private sub_charts: SubChart[] = [];
-  private logging_info?: ASM_Object<Logging_Info>;
-  private magic_boolean_at_last?: ASM_Object<System_Boolean>;
-  private magic_guid_at_last?: ASM_Object<System_Guid>;
-  private _code_tokenizer = new Tokenizer();
-  private _stack_frame: (Ref<Component> | ObjectNull | Component)[] = [];
+  private _serializationVersion?: ASM_Object<System_Int32>;
+  private _masterMode?: ASM_Object<System_Boolean>;
+  private subChartsCount?: ASM_Object<System_Int32>;
+  private subCharts: SubChart[] = [];
+  private _loggingInfo?: ASM_Object<Logging_Info>;
+  private _magicBooleanAtLast?: ASM_Object<System_Boolean>;
+  private _magicGuidAtLast?: ASM_Object<System_Guid>;
+  private _codeTokenizer = new Tokenizer();
+  private _stackFrame: (Ref<Component> | ObjectNull | Component)[] = [];
 
-  private __interpreter = new RaptorInterpreter(this._code_tokenizer, this.env);
+  private _interpreter = new RaptorInterpreter(this._codeTokenizer, this.env);
 
   constructor(raptorBinary: Uint8Array, private env: Environment = globalEnv) {
     this.raptorBinary = raptorBinary;
     this.parser = new Parser(this.raptorBinary);
+  }
+
+  get currentContext() {
+    return this._currentContext;
+  }
+
+  get magicGuidAtLast() {
+    return this._magicGuidAtLast;
+  }
+
+  get serializationVersion() {
+    return this._serializationVersion;
+  }
+
+  get masterMode() {
+    return this._masterMode;
+  }
+  get magicBooleanAtLast() {
+    return this._magicBooleanAtLast;
   }
 
   private readSubChart() {
@@ -70,19 +89,19 @@ export class Raptor {
     const objectString = this.next<ObjectString>();
     const asm = new ASM_Object<OString>();
     asm.object = objectString.object.toOString();
-    const sub_chart_kind = this.next<Sub_Chart_Kinds>();
+    const subChartKind = this.next<Sub_Chart_Kinds>();
 
     if (this.peek().object instanceof System_Int32) {
       magicNumber = this.next();
     }
 
-    const subChart = new SubChart(asm, sub_chart_kind, magicNumber);
+    const subChart = new SubChart(asm, subChartKind, magicNumber);
     this.env.setSubChart(asm.object.value.toLocaleLowerCase(), subChart);
-    this.sub_charts.push(subChart);
+    this.subCharts.push(subChart);
   }
 
   private readSubCharts() {
-    const count = this.sub_charts_count?.valueOf().valueOf();
+    const count = this.subChartsCount?.valueOf().valueOf();
     if (count == undefined || count <= 0) {
       throw new Error(`There is no sub-chart in the raptor file.`);
     }
@@ -91,7 +110,7 @@ export class Raptor {
       this.readSubChart();
     }
     for (i = 0; i < count; i++) {
-      const subChart = this.sub_charts[i];
+      const subChart = this.subCharts[i];
       const component = this.next<Oval | Oval_Procedure>();
       if (
         !(component.object instanceof Oval) &&
@@ -114,28 +133,28 @@ export class Raptor {
    * Parse properly to get the sub-charts
    */
   public parse() {
-    this._parse_data();
-    this.serialization_version = this.next();
+    this._parseData();
+    this._serializationVersion = this.next();
     /** Really don't know if this means master mode or not */
-    this.master_mode = this.next();
+    this._masterMode = this.next();
 
     /** again, don't know if this means subcharts count or not. */
-    this.sub_charts_count = this.next();
+    this.subChartsCount = this.next();
 
     // read sub-charts
     this.readSubCharts();
 
     // read logging_info
-    this.logging_info = this.next();
-    if (!(this.logging_info.object instanceof Logging_Info)) {
+    this._loggingInfo = this.next();
+    if (!(this._loggingInfo.object instanceof Logging_Info)) {
       THROW("this.logging_info.object instanceof Logging_Info == false");
     }
 
     // again, don't know the meaning of the boolean
-    this.magic_boolean_at_last = this.next();
+    this._magicBooleanAtLast = this.next();
 
     // and lastly, there is a guid
-    this.magic_guid_at_last = this.next();
+    this._magicGuidAtLast = this.next();
 
     // should be eof
     if (this.peek() !== undefined) {
@@ -144,7 +163,7 @@ export class Raptor {
     return this.tokens;
   }
 
-  private _parse_data() {
+  private _parseData() {
     const data = this.parser.run();
     this.tokens = data;
   }
@@ -157,12 +176,12 @@ export class Raptor {
   };
   public setInputAnswer(answer: string) {
     const input = new LiteralExpression(new RAP_String(answer));
-    this.__interpreter.assign_input(input);
+    this._interpreter.assignInput(input);
   }
   public startExecution() {
     if (this._interruption) {
       this._interruption = false;
-      this.__interpreter.reset_interrupt();
+      this._interpreter.resetInterrupt();
     }
   }
 
@@ -173,71 +192,68 @@ export class Raptor {
   public step() {
     if (this._interruption || this._done) return false;
 
-    this._current_context ??= this.sub_charts[0];
-    if (this.__interpreter.is_interrupted()) {
+    this._currentContext ??= this.subCharts[0];
+    if (this._interpreter.isInterrupted()) {
       this._interruption = true;
-      if (
-        this.__interpreter.get_interrupt() ===
-        RaptorInterpreter.INTERRUPT_OUTPUT
-      ) {
-        this.onOutput?.call(this, this.__interpreter.get_promptString());
+      if (this._interpreter.interrupt === RaptorInterpreter.INTERRUPT_OUTPUT) {
+        this.onOutput?.call(this, this._interpreter.promptString);
       } else if (
-        this.__interpreter.get_interrupt() === RaptorInterpreter.INTERRUPT_INPUT
+        this._interpreter.interrupt === RaptorInterpreter.INTERRUPT_INPUT
       ) {
-        this.onInput?.call(this, this.__interpreter.get_promptString());
+        this.onInput?.call(this, this._interpreter.promptString);
       }
       return true;
     }
 
-    if (this._current_context instanceof SubChart) {
-      const next = this._current_context.next(this.__interpreter);
-      this._current_context = next;
-    } else if (this._current_context instanceof Oval) {
-      this._current_context = this._current_context.next(this.__interpreter);
-    } else if (this._current_context instanceof Oval_Procedure) {
-      this._current_context = this._current_context.next(this.__interpreter);
-    } else if (this._current_context instanceof Ref) {
-      const ref = this._current_context.valueOf();
+    if (this._currentContext instanceof SubChart) {
+      const next = this._currentContext.next(this._interpreter);
+      this._currentContext = next;
+    } else if (this._currentContext instanceof Oval) {
+      this._currentContext = this._currentContext.next(this._interpreter);
+    } else if (this._currentContext instanceof Oval_Procedure) {
+      this._currentContext = this._currentContext.next(this._interpreter);
+    } else if (this._currentContext instanceof Ref) {
+      const ref = this._currentContext.valueOf();
       if (ref instanceof Rectangle && ref.isFunctionCall()) {
-        this._current_context = ref.next(this.__interpreter);
-        this._stack_frame.push(ref._Successor);
+        this._currentContext = ref.next(this._interpreter);
+        this._stackFrame.push(ref._Successor);
       } else if (ref instanceof IF_Control) {
-        this._stack_frame.push(ref._Successor);
-        this._current_context = ref.next(this.__interpreter);
+        this._stackFrame.push(ref._Successor);
+        this._currentContext = ref.next(this._interpreter);
       } else if (ref instanceof Loop) {
-        this._current_context = ref.next(this.__interpreter);
+        this._currentContext = ref.next(this._interpreter);
         if (
-          this.__interpreter.peek_block_stack() === "loop_start" ||
-          this.__interpreter.peek_block_stack() === "loop_body"
+          this._interpreter.peekBlockStack() === "loop_start" ||
+          this._interpreter.peekBlockStack() === "loop_body"
         ) {
-          this._stack_frame.push(ref);
+          this._stackFrame.push(ref);
         }
-      } else this._current_context = ref;
-    } else if (this._current_context instanceof Parallelogram) {
-      this._current_context = this._current_context.next(this.__interpreter);
-    } else if (this._current_context instanceof Rectangle) {
-      this._current_context = this._current_context.next(this.__interpreter);
-    } else if (this._current_context instanceof Loop) {
-      const next = this._current_context.next(this.__interpreter);
+      } else this._currentContext = ref;
+    } else if (this._currentContext instanceof Parallelogram) {
+      this._currentContext = this._currentContext.next(this._interpreter);
+    } else if (this._currentContext instanceof Rectangle) {
+      this._currentContext = this._currentContext.next(this._interpreter);
+    } else if (this._currentContext instanceof Loop) {
+      const next = this._currentContext.next(this._interpreter);
       if (
-        this.__interpreter.peek_block_stack() === "loop_start" ||
-        this.__interpreter.peek_block_stack() === "loop_body"
+        this._interpreter.peekBlockStack() === "loop_start" ||
+        this._interpreter.peekBlockStack() === "loop_body"
       ) {
-        this._stack_frame.push(this._current_context);
+        this._stackFrame.push(this._currentContext);
       }
-      this._current_context = next;
-    } else if (this._current_context instanceof ObjectNull) {
-      this._current_context = this._stack_frame.pop();
-      if (!this._current_context) this._done = true;
-      if (this._current_context instanceof Loop) {
-      } else this.__interpreter.__pop_stack();
-    } else if (this._current_context instanceof IF_Control) {
-      this._current_context = this._current_context.next(this.__interpreter);
-    } else if (this._current_context === undefined) {
+      this._currentContext = next;
+    } else if (this._currentContext instanceof ObjectNull) {
+      this._currentContext = this._stackFrame.pop();
+      if (!this._currentContext) this._done = true;
+      if (this._currentContext instanceof Loop) {
+      } else this._interpreter.popStack();
+    } else if (this._currentContext instanceof IF_Control) {
+      this._currentContext = this._currentContext.next(this._interpreter);
+    } else if (this._currentContext === undefined) {
       this._done = true;
       return false;
     } else {
-      LOG(this._current_context);
+      LOG(this._currentContext);
       throw new Error("unknown type");
     }
     return true;
