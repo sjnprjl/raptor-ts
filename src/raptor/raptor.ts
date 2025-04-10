@@ -48,7 +48,7 @@ export class Raptor {
   private _serializationVersion?: ASM_Object<System_Int32>;
   private _masterMode?: ASM_Object<System_Boolean>;
   private subChartsCount?: ASM_Object<System_Int32>;
-  private subCharts: SubChart[] = [];
+  private _subCharts: SubChart[] = [];
   private _loggingInfo?: ASM_Object<Logging_Info>;
   private _magicBooleanAtLast?: ASM_Object<System_Boolean>;
   private _magicGuidAtLast?: ASM_Object<System_Guid>;
@@ -81,6 +81,10 @@ export class Raptor {
     return this._magicBooleanAtLast;
   }
 
+  get subCharts() {
+    return this._subCharts;
+  }
+
   private readSubChart() {
     // there are optional magic number in the front of the subchart
     // don't really know what that mean
@@ -97,7 +101,7 @@ export class Raptor {
 
     const subChart = new SubChart(asm, subChartKind, magicNumber);
     this.env.setSubChart(asm.object.value.toLocaleLowerCase(), subChart);
-    this.subCharts.push(subChart);
+    this._subCharts.push(subChart);
   }
 
   private readSubCharts() {
@@ -110,7 +114,7 @@ export class Raptor {
       this.readSubChart();
     }
     for (i = 0; i < count; i++) {
-      const subChart = this.subCharts[i];
+      const subChart = this._subCharts[i];
       const component = this.next<Oval | Oval_Procedure>();
       if (
         !(component.object instanceof Oval) &&
@@ -160,7 +164,7 @@ export class Raptor {
     if (this.peek() !== undefined) {
       throw new Error("could not parse correctly.");
     }
-    return this.subCharts;
+    return true;
   }
 
   private _parseData() {
@@ -192,7 +196,7 @@ export class Raptor {
   public step() {
     if (this._interruption || this._done) return false;
 
-    this._currentContext ??= this.subCharts[0];
+    this._currentContext ??= this._subCharts[0];
     if (this._interpreter.isInterrupted()) {
       this._interruption = true;
       if (this._interpreter.interrupt === RaptorInterpreter.INTERRUPT_OUTPUT) {

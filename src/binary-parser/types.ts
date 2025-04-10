@@ -126,6 +126,10 @@ export class SubChart {
     this._magicArray = arr;
   }
 
+  get magicArray() {
+    return this._magicArray;
+  }
+
   get rootComponent() {
     return this._rootComponent;
   }
@@ -134,7 +138,7 @@ export class SubChart {
     return await this.rootComponent!.valueOf().eval(tokenizer, env);
   }
 
-  next(interpreter: RaptorInterpreter) {
+  next(_: RaptorInterpreter) {
     return this.rootComponent?.valueOf();
   }
 
@@ -142,25 +146,3 @@ export class SubChart {
     return `SubChart: ${this.name.valueOf().value}`;
   }
 }
-
-export const InternalPrimitiveType: Record<InternalPrimitiveTypeE, any> = {
-  [InternalPrimitiveTypeE.Boolean]: OBoolean,
-  [InternalPrimitiveTypeE.Byte]: Byte,
-  [InternalPrimitiveTypeE.Char]: Char,
-  [InternalPrimitiveTypeE.Double]: Double,
-  [InternalPrimitiveTypeE.String]: String,
-  [InternalPrimitiveTypeE.Invalid]: undefined,
-  [InternalPrimitiveTypeE.Currency]: String,
-  [InternalPrimitiveTypeE.Decimal]: Decimal,
-  [InternalPrimitiveTypeE.Int16]: Int16,
-  [InternalPrimitiveTypeE.Int32]: Int32,
-  [InternalPrimitiveTypeE.Int64]: Int64,
-  [InternalPrimitiveTypeE.SByte]: SByte,
-  [InternalPrimitiveTypeE.Single]: Single,
-  [InternalPrimitiveTypeE.TimeSpan]: TimeSpan,
-  [InternalPrimitiveTypeE.DateTime]: DateTime,
-  [InternalPrimitiveTypeE.UInt16]: UInt16,
-  [InternalPrimitiveTypeE.UInt32]: UInt32,
-  [InternalPrimitiveTypeE.UInt64]: UInt64,
-  [InternalPrimitiveTypeE.Null]: Null,
-};

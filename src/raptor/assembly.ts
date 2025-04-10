@@ -89,7 +89,7 @@ export class Component
     comp._parent = this._parent.clone();
     return comp;
   }
-  async eval(
+  eval(
     tokenizer: Tokenizer,
     env: Environment
   ): Promise<SubChart | ObjectNull | Ref<Component>> {
@@ -363,21 +363,8 @@ export class Oval extends Component implements ICloneable<Oval> {
     return `Oval(${this._text_str.valueOf()})`;
   }
 
-  private getName() {
-    if (this._name instanceof Ref) {
-      return this._name.valueOf();
-    } else return this._name;
-  }
-
   async eval(_: Tokenizer, __: Environment) {
     return this._Successor;
-
-    // if (this._Successor instanceof ObjectNull) {
-    // } else if (this._Successor instanceof Ref) {
-    //   const comp = this._Successor.valueOf();
-    //   if (!comp) throw new Error(`Not found: Component '${comp}' not found`);
-    //   comp.eval(tokenizer, env);
-    // }
   }
 
   next(interpreter: RaptorInterpreter) {
