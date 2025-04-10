@@ -160,7 +160,7 @@ export class Raptor {
     if (this.peek() !== undefined) {
       throw new Error("could not parse correctly.");
     }
-    return this.tokens;
+    return this.subCharts;
   }
 
   private _parseData() {
