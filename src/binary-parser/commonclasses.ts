@@ -340,13 +340,9 @@ export class MemberReference {
   }
 }
 
-export class ObjectNull implements ICloneable<ObjectNull> {
+export class ObjectNull {
   public nullCount = 0;
   public readonly __className = ObjectNull.name;
-
-  clone() {
-    return new ObjectNull();
-  }
 
   read(parser: Parser, binaryHeaderEnum: BinaryHeaderEnum) {
     switch (binaryHeaderEnum) {

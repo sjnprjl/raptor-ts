@@ -7,11 +7,9 @@ import {
   Byte,
   DateTime,
   ICloneable,
-  IEvaluatable,
   Int16,
   Int32,
   OBoolean,
-  SubChart,
 } from "../binary-parser/types";
 import { Environment } from "./environment";
 import {
@@ -22,7 +20,7 @@ import {
   VariableExpression,
 } from "./expression-types";
 import { RaptorInterpreter } from "./interpreter";
-import { parseConditionalExpression, parseExpression } from "./parser";
+import { parseExpression } from "./parser";
 import { Tokenizer } from "./tokenizer";
 
 enum RectangleKindE {
@@ -66,12 +64,7 @@ export class OString extends BaseObject implements ICloneable<OString> {
   }
 }
 
-export class Component
-  extends BaseObject
-  implements
-    ICloneable<Component>,
-    IEvaluatable<Promise<SubChart | Ref<Component> | ObjectNull>>
-{
+export class Component extends BaseObject {
   _serialization!: Int32;
   _FP!: Ref<FootPrint>;
   _x_location!: Int32;
@@ -79,33 +72,26 @@ export class Component
   _parent!: Ref<Component> | ObjectNull;
   _Successor!: Ref<Component> | ObjectNull;
   _text_str!: ObjectString;
+  _comment!: ObjectNull | CommentBox | Ref<CommentBox>;
+  _rect!: System_Drawing_Rectangle | Ref<System_Drawing_Rectangle>;
 
-  clone() {
-    const comp = new Component(this.objectId);
-    comp._serialization = this._serialization.clone();
-    comp._FP = this._FP.clone();
-    comp._x_location = this._x_location.clone();
-    comp._y_location = this._y_location.clone();
-    comp._parent = this._parent.clone();
-    return comp;
+  get successor(): null | Component | undefined {
+    return this._Successor.valueOf();
   }
-  eval(
-    tokenizer: Tokenizer,
-    env: Environment
-  ): Promise<SubChart | ObjectNull | Ref<Component>> {
-    throw new Error("Method not implemented.");
+
+  get rect() {
+    return this._rect.valueOf();
+  }
+
+  get comment(): null | CommentBox | undefined {
+    return this._comment.valueOf();
   }
 }
 
-export class Ref<T extends ICloneable<T>> implements ICloneable<Ref<T>> {
+export class Ref<T> {
   public ref?: T;
   constructor(public mapId: Int32) {}
-  clone() {
-    const ref = new Ref<T>(this.mapId);
-    ref.ref = this.ref;
-    return ref;
-  }
-  valueOf() {
+  valueOf(): T | undefined {
     return this.ref;
   }
   toString() {
@@ -192,17 +178,11 @@ export class System_Guid extends BaseObject implements ICloneable<System_Guid> {
   }
 }
 
-export class Parallelogram
-  extends BaseObject
-  implements ICloneable<Parallelogram>
-{
+export class Parallelogram extends Component {
   _prompt!: ObjectString;
   _is_input!: OBoolean;
   _new_line!: OBoolean;
   _input_expression!: OBoolean;
-  _serialization_version!: Int32;
-  _FP!: Ref<FootPrint>;
-  _text_str!: ObjectString;
   _name!: ObjectString | Ref<ObjectString>;
   _proximity!: Int32;
   _head_height!: Int32;
@@ -210,24 +190,14 @@ export class Parallelogram
   _head_heightOrig!: Int32;
   _head_widthOrig!: Int32;
   _connector_length!: Int32;
-  _x_location!: Int32;
-  _y_location!: Int32;
-  _Successor!: Ref<ObjectNull>;
-  _parent!: ObjectNull | unknown;
   _is_child!: OBoolean;
   _is_beforeChild!: OBoolean;
   _is_afterChild!: OBoolean;
   _full_text!: OBoolean;
   _height_of_text!: Int32;
   _char_length!: Int32;
-  _rect!: System_Drawing_Rectangle | Ref<System_Drawing_Rectangle>;
-  _comment!: ObjectNull | unknown;
   _created_guid!: System_Guid;
   _changed_guid!: System_Guid;
-  clone(): Parallelogram {
-    const parallelogram = new Parallelogram(this.objectId);
-    return parallelogram;
-  }
   toString() {
     return `Parallelogram`;
   }
@@ -264,7 +234,6 @@ export class Parallelogram
 
   parse(tokenizer: Tokenizer) {
     const isInput = this._is_input.valueOf();
-    // let tokens = [];
 
     let source = this._prompt.valueOf();
     let variable = "";
@@ -280,12 +249,10 @@ export class Parallelogram
     const promptSourceExpr = parseExpression(tokenizer);
 
     return { varExpr, promptSourceExpr, isInput };
-
-    // return { prompt: promptSource, variable, isInput };
   }
 }
 
-export class IF_Control extends Component implements ICloneable<IF_Control> {
+export class IF_Control extends Component {
   _left_Child!: Ref<Component> | ObjectNull;
   _right_Child!: Ref<Component> | ObjectNull;
   _bottom!: Int32;
@@ -300,11 +267,11 @@ export class IF_Control extends Component implements ICloneable<IF_Control> {
   _is_compressed!: OBoolean;
   _text_str!: ObjectString;
 
-  clone(): IF_Control {
-    const ifCtrl = new IF_Control(this.objectId);
-    ifCtrl._left_Child = this._left_Child?.clone();
-    ifCtrl._right_Child = this._right_Child?.clone();
-    return ifCtrl;
+  get leftChild() {
+    return this._left_Child.valueOf();
+  }
+  get rightChild() {
+    return this._right_Child.valueOf();
   }
 
   next(interpreter: RaptorInterpreter) {
@@ -314,28 +281,12 @@ export class IF_Control extends Component implements ICloneable<IF_Control> {
     else return this._right_Child;
   }
 
-  async eval(tokenizer: Tokenizer, env: Environment) {
-    const source = this._text_str.valueOf();
-    tokenizer.tokenize(source);
-    return this.eval_condition(tokenizer, env);
-  }
-
-  private eval_condition(tokenizer: Tokenizer, env: Environment) {
-    const expr = parseConditionalExpression(tokenizer);
-    const cond = expr.eval(env);
-
-    if (cond === true) {
-      return this._left_Child;
-    } else {
-      return this._right_Child;
-    }
-  }
   toString() {
     return `IF_Control(${this._text_str.valueOf()})`;
   }
 }
 
-export class Oval extends Component implements ICloneable<Oval> {
+export class Oval extends Component {
   _text_str!: ObjectString;
   _name!: ObjectString | Ref<ObjectString>;
   _proximity!: Int32;
@@ -350,14 +301,8 @@ export class Oval extends Component implements ICloneable<Oval> {
   _height_of_text!: Int32;
   _char_length!: Int32;
   _rect!: System_Drawing_Rectangle;
-  _comment!: ObjectNull | CommentBox | Ref<CommentBox>;
   _created_guid!: System_Guid;
   _changed_guid!: System_Guid;
-
-  clone(): Oval {
-    const oval = new Oval(this.objectId);
-    return oval;
-  }
 
   toString() {
     return `Oval(${this._text_str.valueOf()})`;
@@ -379,17 +324,11 @@ export class Oval extends Component implements ICloneable<Oval> {
   }
 }
 
-export class Logging_Info
-  extends BaseObject
-  implements ICloneable<Logging_Info>
-{
+export class Logging_Info extends BaseObject {
   private _count!: Int32;
   private _users: ObjectString[] = [];
   private _machines: ObjectString[] = [];
   private _dates: DateTime[] = [];
-  clone(): Logging_Info {
-    throw new Error("Method not implemented.");
-  }
 
   get count() {
     return this._count;
@@ -415,10 +354,7 @@ export class Logging_Info
   }
 }
 
-export class System_Drawing_Rectangle
-  extends BaseObject
-  implements ICloneable<System_Drawing_Rectangle>
-{
+export class System_Drawing_Rectangle extends BaseObject {
   public x!: Int32;
   public y!: Int32;
   public width!: Int32;
@@ -432,16 +368,13 @@ export class System_Drawing_Rectangle
     rect.height = this.height.clone();
     return rect;
   }
-}
-export class Rectangle extends Component implements ICloneable<Rectangle> {
-  private _kind!: Rectangle_Kind_Of;
-  private _name!: ObjectString;
-  clone() {
-    const rect = new Rectangle(this.objectId);
-    rect._FP = this._FP?.clone();
 
-    return rect;
+  override valueOf() {
+    return this;
   }
+}
+export class Rectangle extends Component {
+  private _kind!: Rectangle_Kind_Of;
 
   valueOf() {
     return this;
@@ -513,13 +446,9 @@ export class Rectangle_Kind_Of
   }
 }
 
-export class Loop extends Component implements ICloneable<Loop> {
+export class Loop extends Component {
   private _after_Child?: Ref<Component> | ObjectNull;
   private _before_Child?: Ref<Component> | ObjectNull;
-  clone() {
-    const loop = new Loop(this.objectId);
-    return loop;
-  }
   toString() {
     return `Loop(${this._text_str.valueOf()})`;
   }
@@ -542,14 +471,11 @@ export class Loop extends Component implements ICloneable<Loop> {
     }
   }
 }
-export class Oval_Procedure
-  extends Component
-  implements ICloneable<Oval_Procedure>
-{
+export class Oval_Procedure extends Component {
   private _numParams!: Int32;
 
-  clone() {
-    return this as Oval_Procedure;
+  get numParams() {
+    return this._numParams.valueOf();
   }
 
   next(__interpreter: RaptorInterpreter) {
@@ -559,16 +485,6 @@ export class Oval_Procedure
     return this._Successor;
   }
 
-  // async eval(tokenizer: Tokenizer, env: Environment) {
-  //   const source = this._text_str.valueOf();
-  //   tokenizer.tokenize(source);
-  //   const funcDecl = parse_function_declaration(tokenizer) as FuncDeclaration;
-  //   funcDecl.args = this._callExpression?.args ?? [];
-  //   funcDecl.eval(env);
-
-  //   return this._Successor;
-  // }
-
   toString() {
     return `Oval_Procedure(${this._text_str.valueOf()})`;
   }
@@ -577,6 +493,9 @@ export class Oval_Procedure
 export class CommentBox extends BaseObject implements ICloneable<CommentBox> {
   clone() {
     return new CommentBox(this.objectId);
+  }
+  valueOf() {
+    return this;
   }
 }
 
