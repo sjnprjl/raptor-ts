@@ -2,6 +2,7 @@ import { readFile } from "fs";
 import { Raptor } from "../../dist/index.js";
 import Readline from "readline";
 import { EventEmitter } from "events";
+import { nextTick } from "process";
 
 const raptorEvent = new EventEmitter();
 
@@ -9,10 +10,17 @@ readFile("./hello-world.rap", (err, data) => {
   if (err) throw err;
   const raptor = new Raptor(data);
   raptor.parse();
+
+  const resumeExecution = () => {
+    raptor.startExecution();
+    nextTick(() => {
+      raptorEvent.emit("execute");
+    });
+  };
+
   raptor.onOutput = (output) => {
     console.log(output);
-    raptor.startExecution();
-    raptorEvent.emit("execute");
+    resumeExecution();
   };
 
   raptor.onInput = (prompt) => {
@@ -22,9 +30,8 @@ readFile("./hello-world.rap", (err, data) => {
     });
     readline.question(prompt, (answer) => {
       raptor.setInputAnswer(answer);
-      raptor.startExecution();
-      raptorEvent.emit("execute");
       readline.close();
+      resumeExecution();
     });
   };
 
@@ -34,5 +41,5 @@ readFile("./hello-world.rap", (err, data) => {
     while (raptor.step());
   });
 
-  raptorEvent.emit("execute");
+  resumeExecution();
 });
