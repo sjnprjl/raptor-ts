@@ -81,7 +81,7 @@ export class Raptor {
     return this._magicBooleanAtLast;
   }
 
-  get subCharts() {
+  getSubCharts() {
     return this._subCharts;
   }
 
