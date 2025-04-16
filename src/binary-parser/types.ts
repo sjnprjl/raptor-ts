@@ -2,22 +2,17 @@ import { BinaryArray, ObjectString } from "./commonclasses";
 import { InternalPrimitiveTypeE } from "./enums";
 import {
   ASM_Object,
+  Component,
+  IF_Control,
   OString,
   Oval,
   Oval_Procedure,
   Sub_Chart_Kinds,
   System_Int32,
 } from "../raptor/assembly";
-import { Environment } from "../raptor/environment";
 import { RaptorInterpreter } from "../raptor/interpreter";
-import { Tokenizer } from "../raptor/tokenizer";
-
 export interface ICloneable<T> {
   clone(): T;
-}
-
-export interface IEvaluatable<T> {
-  eval(tokenizer: Tokenizer, env: Environment): T;
 }
 
 export class Char extends String implements ICloneable<Char> {
@@ -139,5 +134,146 @@ export class SubChart {
 
   toString() {
     return `SubChart: ${this.name.valueOf().value}`;
+  }
+
+  getSymbolTree() {
+    let trees: Exclude<typeof symbol, null>[] = [];
+    const symbolStack: Exclude<typeof symbol, null>[] = [];
+    const treesStack: (typeof trees)[] = [trees];
+
+    let rootComponent: any = this.rootComponent?.valueOf();
+    if (!rootComponent)
+      throw new Error(
+        "There is no root component in a subchart. Not a valid subchart"
+      );
+
+    type nameType =
+      | "Oval"
+      | "Oval_Procedure"
+      | "Loop"
+      | "IF_Control"
+      | "Parallelogram"
+      | "Rectangle";
+    let symbol: {
+      name: nameType;
+      component: Component;
+      afterCondition?: typeof trees; // for loop
+      beforeCondition?: typeof trees; // for loop
+
+      yesChild?: typeof trees; // for if_control
+      noChild?: typeof trees; // for if_control
+    } | null = null;
+    while (rootComponent || symbolStack.length) {
+      const name = !rootComponent
+        ? null
+        : (rootComponent.getName() as nameType);
+
+      if (name) {
+        symbol = {
+          name,
+          component: rootComponent,
+        };
+      }
+      switch (name) {
+        case null:
+          const popped = symbolStack.pop();
+          if (!popped)
+            throw new Error("Error: symbol stack is empty. Possibly a bug!");
+
+          switch (popped!.name) {
+            case "Loop":
+              if (!popped.afterCondition) {
+                rootComponent = popped.component;
+                symbolStack.push(popped);
+              } else {
+                // left and right condition are all gathered
+                treesStack.pop(); // right
+                treesStack.pop(); // left;
+                trees = treesStack.pop()!;
+                trees.push(popped);
+                treesStack.push(trees);
+                rootComponent = popped.component.successor;
+              }
+              break;
+            case "IF_Control":
+              if (!popped.noChild) {
+                rootComponent = popped.component;
+                symbolStack.push(popped);
+              } else {
+                treesStack.pop(); // noChild
+                treesStack.pop(); // yesChild
+                treesStack[treesStack.length - 1].push(popped);
+                rootComponent = popped.component.successor;
+              }
+              break;
+            default:
+              throw new Error(
+                "Error: symbol stack can only contain block components such as Loop or IF_Control but got: " +
+                  popped!.name
+              );
+          }
+          break;
+
+        case "Loop":
+          trees = [];
+          treesStack.push(trees);
+          if (
+            symbolStack.length &&
+            symbolStack[symbolStack.length - 1].name === "Loop"
+          ) {
+            symbol = symbolStack[symbolStack.length - 1];
+          }
+
+          if (!symbol) throw new Error("symbol is null. Possibly a bug");
+
+          if (symbol.beforeCondition) {
+            rootComponent = rootComponent._after_Child.valueOf();
+            symbol.afterCondition ??= trees;
+          } else {
+            symbolStack.push(symbol);
+            rootComponent = rootComponent._before_Child.valueOf();
+            symbol.beforeCondition ??= trees;
+          }
+
+          break;
+        case "IF_Control":
+          trees = [];
+          treesStack.push(trees);
+          if (
+            symbolStack.length &&
+            symbolStack[symbolStack.length - 1].name === "IF_Control"
+          ) {
+            symbol = symbolStack[symbolStack.length - 1];
+          }
+
+          if (!symbol)
+            throw new Error("Error: symbol is null. Possibly a bug!");
+
+          if (symbol.yesChild) {
+            rootComponent = (
+              rootComponent as IF_Control
+            )._right_Child.valueOf();
+            symbol.noChild = trees;
+          } else {
+            symbolStack.push(symbol);
+            symbol.yesChild = trees;
+            rootComponent = (rootComponent as IF_Control)._left_Child.valueOf();
+          }
+
+          break;
+        case "Oval":
+        case "Oval_Procedure":
+        case "Parallelogram":
+        case "Rectangle":
+          if (!symbol)
+            throw new Error("Error: symbol is null. Possibly a bug!");
+          rootComponent = rootComponent.successor?.valueOf();
+          treesStack[treesStack.length - 1].push(symbol);
+          break;
+        default:
+          throw new Error(`Unknown component: ${name}`);
+      }
+    }
+    return treesStack[0];
   }
 }
