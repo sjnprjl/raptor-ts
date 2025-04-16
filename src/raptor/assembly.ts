@@ -11,7 +11,6 @@ import {
   Int32,
   OBoolean,
 } from "../binary-parser/types";
-import { Environment } from "./environment";
 import {
   CalleeExpression,
   CallExpression,
@@ -74,6 +73,36 @@ export class Component extends BaseObject {
   _text_str!: ObjectString;
   _comment!: ObjectNull | CommentBox | Ref<CommentBox>;
   _rect!: System_Drawing_Rectangle | Ref<System_Drawing_Rectangle>;
+  _proximity!: Int32;
+  _head_height!: Int32;
+  _head_heightOrig!: Int32;
+  _head_widthOrig!: Int32;
+  _connector_length!: Int32;
+  _is_child!: OBoolean;
+  _is_beforeChild!: OBoolean;
+  _is_afterChild!: OBoolean;
+  _full_text!: OBoolean;
+  _height_of_text!: Int32;
+  _char_length!: Int32;
+  _created_guid!: System_Guid;
+  _changed_guid!: System_Guid;
+  private _name!: ObjectString | Ref<ObjectString>;
+
+  getRect() {
+    return this._rect;
+  }
+
+  getComment() {
+    return this._comment.valueOf();
+  }
+
+  getName() {
+    if (!this._name) return null;
+
+    const output = this._name.valueOf();
+    if (typeof output === "object") return output.valueOf();
+    return output;
+  }
 
   get successor(): null | Component | undefined {
     return this._Successor.valueOf();
@@ -149,17 +178,17 @@ export class Event_Kind
 }
 
 export class System_Guid extends BaseObject implements ICloneable<System_Guid> {
-  public _a!: Int32;
-  public _b!: Int16;
-  public _c!: Byte;
-  public _d!: Byte;
-  public _e!: Byte;
-  public _f!: Byte;
-  public _g!: Byte;
-  public _h!: Byte;
-  public _i!: Byte;
-  public _j!: Byte;
-  public _k!: Byte;
+  private _a!: Int32;
+  private _b!: Int16;
+  private _c!: Byte;
+  private _d!: Byte;
+  private _e!: Byte;
+  private _f!: Byte;
+  private _g!: Byte;
+  private _h!: Byte;
+  private _i!: Byte;
+  private _j!: Byte;
+  private _k!: Byte;
   clone(): System_Guid {
     const guid = new System_Guid(this.objectId);
     guid._a = this._a.clone();
@@ -179,31 +208,21 @@ export class System_Guid extends BaseObject implements ICloneable<System_Guid> {
 }
 
 export class Parallelogram extends Component {
-  _prompt!: ObjectString;
-  _is_input!: OBoolean;
-  _new_line!: OBoolean;
-  _input_expression!: OBoolean;
-  _name!: ObjectString | Ref<ObjectString>;
-  _proximity!: Int32;
-  _head_height!: Int32;
-  _head_width!: Int32;
-  _head_heightOrig!: Int32;
-  _head_widthOrig!: Int32;
-  _connector_length!: Int32;
-  _is_child!: OBoolean;
-  _is_beforeChild!: OBoolean;
-  _is_afterChild!: OBoolean;
-  _full_text!: OBoolean;
-  _height_of_text!: Int32;
-  _char_length!: Int32;
-  _created_guid!: System_Guid;
-  _changed_guid!: System_Guid;
+  public _prompt!: ObjectString;
+  public _new_line!: OBoolean;
+  public _is_input!: OBoolean;
+  public _input_expression!: OBoolean;
+
   toString() {
     return `Parallelogram`;
   }
 
   valueOf() {
     return this;
+  }
+
+  isInput() {
+    return this._is_input;
   }
 
   next(interpreter: RaptorInterpreter) {
@@ -270,8 +289,17 @@ export class IF_Control extends Component {
   get leftChild() {
     return this._left_Child.valueOf();
   }
+
+  getTrueChild() {
+    return this._left_Child.valueOf();
+  }
   get rightChild() {
     return this._right_Child.valueOf();
+  }
+
+  // this component is called when condition is unsatisfied
+  getFalseChild() {
+    return this.rightChild;
   }
 
   next(interpreter: RaptorInterpreter) {
@@ -287,29 +315,8 @@ export class IF_Control extends Component {
 }
 
 export class Oval extends Component {
-  _text_str!: ObjectString;
-  _name!: ObjectString | Ref<ObjectString>;
-  _proximity!: Int32;
-  _head_height!: Int32;
-  _head_heightOrig!: Int32;
-  _head_widthOrig!: Int32;
-  _connector_length!: Int32;
-  _is_child!: OBoolean;
-  _is_beforeChild!: OBoolean;
-  _is_afterChild!: OBoolean;
-  _full_text!: OBoolean;
-  _height_of_text!: Int32;
-  _char_length!: Int32;
-  _rect!: System_Drawing_Rectangle;
-  _created_guid!: System_Guid;
-  _changed_guid!: System_Guid;
-
   toString() {
     return `Oval(${this._text_str.valueOf()})`;
-  }
-
-  async eval(_: Tokenizer, __: Environment) {
-    return this._Successor;
   }
 
   next(interpreter: RaptorInterpreter) {
@@ -330,16 +337,16 @@ export class Logging_Info extends BaseObject {
   private _machines: ObjectString[] = [];
   private _dates: DateTime[] = [];
 
-  get count() {
+  getCount() {
     return this._count;
   }
-  get users() {
+  getUsers() {
     return this._users;
   }
-  get machines() {
+  getMachines() {
     return this._machines;
   }
-  get dates() {
+  getDates() {
     return this._dates;
   }
 
